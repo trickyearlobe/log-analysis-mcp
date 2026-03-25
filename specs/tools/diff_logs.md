@@ -19,14 +19,17 @@
 
 ```go
 type DiffLogsInput struct {
-    BasePath     string `json:"base_path"                jsonschema:"required,description=Path to the baseline (before) log file"`
-    TargetPath   string `json:"target_path,omitempty"     jsonschema:"description=Path to the target (after) log file; omit for single-file time range mode"`
-    BaseAfter    string `json:"base_after,omitempty"      jsonschema:"description=ISO 8601 timestamp — start of baseline period"`
-    BaseBefore   string `json:"base_before,omitempty"     jsonschema:"description=ISO 8601 timestamp — end of baseline period"`
-    TargetAfter  string `json:"target_after,omitempty"    jsonschema:"description=ISO 8601 timestamp — start of target period"`
-    TargetBefore string `json:"target_before,omitempty"   jsonschema:"description=ISO 8601 timestamp — end of target period"`
+    BasePath     string `json:"base_path"                jsonschema:"Path to the baseline (before) log file"`
+    TargetPath   string `json:"target_path,omitempty"     jsonschema:"Path to the target (after) log file; omit for single-file time range mode"`
+    BaseAfter    string `json:"base_after,omitempty"      jsonschema:"ISO 8601 timestamp — start of baseline period"`
+    BaseBefore   string `json:"base_before,omitempty"     jsonschema:"ISO 8601 timestamp — end of baseline period"`
+    TargetAfter  string `json:"target_after,omitempty"    jsonschema:"ISO 8601 timestamp — start of target period"`
+    TargetBefore string `json:"target_before,omitempty"   jsonschema:"ISO 8601 timestamp — end of target period"`
 }
 ```
+
+> **Note:** The SDK infers `required` from the absence of `omitempty` in the `json` tag.
+> The `jsonschema` tag contains only the description text — no `required` or `description=` prefixes.
 
 ## Modes
 
