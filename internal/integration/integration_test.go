@@ -159,7 +159,49 @@ type correlateLogsResult struct {
 	GroupsReturned   int               `json:"groups_returned"`
 }
 
-func TestListToolsReturnsAll11(t *testing.T) {
+type errorDiff struct {
+	Pattern     string `json:"pattern"`
+	BaseCount   int    `json:"base_count"`
+	TargetCount int    `json:"target_count"`
+	Change      int    `json:"change"`
+}
+
+type levelDiff struct {
+	Level            string  `json:"level"`
+	BaseCount        int     `json:"base_count"`
+	BasePercentage   float64 `json:"base_percentage"`
+	TargetCount      int     `json:"target_count"`
+	TargetPercentage float64 `json:"target_percentage"`
+}
+
+type sourceDiff struct {
+	Source      string `json:"source"`
+	BaseCount   int    `json:"base_count"`
+	TargetCount int    `json:"target_count"`
+	Change      int    `json:"change"`
+}
+
+type periodSummary struct {
+	Path           string  `json:"path"`
+	TotalLines     int     `json:"total_lines"`
+	ParsedLines    int     `json:"parsed_lines"`
+	ErrorCount     int     `json:"error_count"`
+	LinesPerMinute float64 `json:"lines_per_minute"`
+}
+
+type diffLogsResult struct {
+	BaseSummary        periodSummary `json:"base_summary"`
+	TargetSummary      periodSummary `json:"target_summary"`
+	NewErrors          []errorDiff   `json:"new_errors"`
+	ResolvedErrors     []errorDiff   `json:"resolved_errors"`
+	ChangedErrors      []errorDiff   `json:"changed_errors"`
+	LevelChanges       []levelDiff   `json:"level_changes"`
+	NewSources         []sourceDiff  `json:"new_sources"`
+	DisappearedSources []sourceDiff  `json:"disappeared_sources"`
+	ChangedSources     []sourceDiff  `json:"changed_sources"`
+}
+
+func TestListToolsReturnsAll12(t *testing.T) {
 	session := setupTestServer(t)
 
 	resp, err := session.ListTools(context.Background(), nil)
@@ -179,10 +221,11 @@ func TestListToolsReturnsAll11(t *testing.T) {
 		"timeline":         false,
 		"correlate_logs":   false,
 		"decompress_file":  false,
+		"diff_logs":        false,
 	}
 
-	if len(resp.Tools) != 11 {
-		t.Errorf("expected 11 tools, got %d", len(resp.Tools))
+	if len(resp.Tools) != 12 {
+		t.Errorf("expected 12 tools, got %d", len(resp.Tools))
 	}
 
 	for _, tool := range resp.Tools {
@@ -894,5 +937,119 @@ func TestDecompressFileThenMultiTool(t *testing.T) {
 	}
 	if tail.TotalLines != 50 {
 		t.Errorf("tail: expected total_lines=50, got %d", tail.TotalLines)
+	}
+}
+
+func TestDiffLogsFileVsFile(t *testing.T) {
+	session := setupTestServer(t)
+	dir := t.TempDir()
+
+	baseLines := []string{
+		`{"timestamp":"2025-01-15T10:00:01Z","level":"INFO","source":"web","message":"Request received"}`,
+		`{"timestamp":"2025-01-15T10:00:02Z","level":"ERROR","source":"db","message":"Connection timeout to 192.168.1.100"}`,
+		`{"timestamp":"2025-01-15T10:00:03Z","level":"ERROR","source":"db","message":"Connection timeout to 192.168.1.101"}`,
+		`{"timestamp":"2025-01-15T10:00:04Z","level":"ERROR","source":"storage","message":"Disk full on /mnt/data"}`,
+		`{"timestamp":"2025-01-15T10:00:05Z","level":"INFO","source":"web","message":"Request completed"}`,
+	}
+	basePath := writeLogFile(t, dir, "diff_base.log", baseLines)
+
+	targetLines := []string{
+		`{"timestamp":"2025-01-15T11:00:01Z","level":"ERROR","source":"storage","message":"Disk full on /mnt/backup"}`,
+		`{"timestamp":"2025-01-15T11:00:02Z","level":"INFO","source":"web","message":"Request received"}`,
+		`{"timestamp":"2025-01-15T11:00:03Z","level":"ERROR","source":"auth","message":"Authentication failed for user admin"}`,
+		`{"timestamp":"2025-01-15T11:00:04Z","level":"ERROR","source":"auth","message":"Authentication failed for user deploy"}`,
+		`{"timestamp":"2025-01-15T11:00:05Z","level":"INFO","source":"web","message":"Request completed"}`,
+	}
+	targetPath := writeLogFile(t, dir, "diff_target.log", targetLines)
+
+	out := callTool[diffLogsResult](t, session, "diff_logs", map[string]any{
+		"base_path":   basePath,
+		"target_path": targetPath,
+	})
+
+	if out.BaseSummary.TotalLines != 5 {
+		t.Errorf("base TotalLines = %d, want 5", out.BaseSummary.TotalLines)
+	}
+	if out.TargetSummary.TotalLines != 5 {
+		t.Errorf("target TotalLines = %d, want 5", out.TargetSummary.TotalLines)
+	}
+
+	// "Connection timeout" should be resolved (base only).
+	foundResolved := false
+	for _, e := range out.ResolvedErrors {
+		if strings.Contains(e.Pattern, "Connection timeout") {
+			foundResolved = true
+			break
+		}
+	}
+	if !foundResolved {
+		t.Error("expected 'Connection timeout' in ResolvedErrors")
+	}
+
+	// "Authentication failed" should be new (target only).
+	foundNew := false
+	for _, e := range out.NewErrors {
+		if strings.Contains(e.Pattern, "Authentication failed") {
+			foundNew = true
+			break
+		}
+	}
+	if !foundNew {
+		t.Error("expected 'Authentication failed' in NewErrors")
+	}
+
+	// "Disk full" should be in changed (present in both).
+	foundChanged := false
+	for _, e := range out.ChangedErrors {
+		if strings.Contains(e.Pattern, "Disk full") {
+			foundChanged = true
+			break
+		}
+	}
+	if !foundChanged {
+		t.Error("expected 'Disk full' in ChangedErrors")
+	}
+}
+
+func TestDiffLogsSingleFileTimeRanges(t *testing.T) {
+	session := setupTestServer(t)
+	dir := t.TempDir()
+
+	lines := []string{
+		`{"timestamp":"2025-01-15T10:00:00Z","level":"INFO","source":"web","message":"Healthy request"}`,
+		`{"timestamp":"2025-01-15T10:01:00Z","level":"INFO","source":"web","message":"Healthy request"}`,
+		`{"timestamp":"2025-01-15T10:02:00Z","level":"ERROR","source":"db","message":"Timeout to 10.0.0.1"}`,
+		`{"timestamp":"2025-01-15T11:00:00Z","level":"ERROR","source":"db","message":"Timeout to 10.0.0.2"}`,
+		`{"timestamp":"2025-01-15T11:01:00Z","level":"ERROR","source":"db","message":"Timeout to 10.0.0.3"}`,
+		`{"timestamp":"2025-01-15T11:02:00Z","level":"ERROR","source":"db","message":"Timeout to 10.0.0.4"}`,
+		`{"timestamp":"2025-01-15T11:03:00Z","level":"INFO","source":"web","message":"Healthy request"}`,
+	}
+	path := writeLogFile(t, dir, "single_file_diff.log", lines)
+
+	out := callTool[diffLogsResult](t, session, "diff_logs", map[string]any{
+		"base_path":     path,
+		"base_after":    "2025-01-15T10:00:00Z",
+		"base_before":   "2025-01-15T10:59:59Z",
+		"target_after":  "2025-01-15T11:00:00Z",
+		"target_before": "2025-01-15T11:59:59Z",
+	})
+
+	// Base period: 1 error. Target period: 3 errors.
+	if out.BaseSummary.ErrorCount >= out.TargetSummary.ErrorCount {
+		t.Errorf("base ErrorCount (%d) should be < target ErrorCount (%d)",
+			out.BaseSummary.ErrorCount, out.TargetSummary.ErrorCount)
+	}
+}
+
+func TestDiffLogsErrorMissingFile(t *testing.T) {
+	session := setupTestServer(t)
+
+	errText := callToolExpectError(t, session, "diff_logs", map[string]any{
+		"base_path":   "/nonexistent/missing.log",
+		"target_path": "/nonexistent/other.log",
+	})
+
+	if !strings.Contains(errText, "not found") {
+		t.Errorf("expected error to contain 'not found', got: %s", errText)
 	}
 }

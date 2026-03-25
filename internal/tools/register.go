@@ -1,4 +1,4 @@
-// Package tools implements the 11 MCP tool handlers for log analysis.
+// Package tools implements the 12 MCP tool handlers for log analysis.
 package tools
 
 import (
@@ -63,6 +63,11 @@ func Register(srv *mcp.Server) {
 		Name:        "decompress_file",
 		Description: "Decompress a compressed log file (.gz, .bz2, .zip) to a temporary plain-text file on disk. Use this before running multiple tools on the same compressed file — it pays the decompression cost once, then all subsequent tools get full seekable performance. For a single tool call, you can pass the compressed path directly — all tools handle decompression transparently.",
 	}, handleDecompressFile)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "diff_logs",
+		Description: "Compare two log files or two time periods within a single file and highlight differences: new error types, resolved errors, rate changes, source changes, and throughput shifts. Useful for before/after deployment comparisons, incident investigation, and trend analysis.",
+	}, handleDiffLogs)
 }
 
 func handleReadLogs(_ context.Context, _ *mcp.CallToolRequest, input ReadLogsInput) (*mcp.CallToolResult, ReadLogsOutput, error) {
@@ -149,6 +154,14 @@ func handleDecompressFile(_ context.Context, _ *mcp.CallToolRequest, input Decom
 	result, err := RunDecompressFile(input)
 	if err != nil {
 		return nil, DecompressFileOutput{}, err
+	}
+	return nil, result, nil
+}
+
+func handleDiffLogs(_ context.Context, _ *mcp.CallToolRequest, input DiffLogsInput) (*mcp.CallToolResult, DiffLogsOutput, error) {
+	result, err := RunDiffLogs(input)
+	if err != nil {
+		return nil, DiffLogsOutput{}, err
 	}
 	return nil, result, nil
 }
