@@ -169,3 +169,102 @@ The prompt returns a single `user` role message. The text is constructed from `l
 
 **Example Usage Scenario:**
 An ops engineer asks "how healthy is our system?" and the AI uses this prompt to conduct a thorough health assessment using multiple tools in a structured sequence.
+
+---
+
+### `generate_report`
+
+**Purpose:** Guide the AI through a comprehensive multi-tool investigation to produce a structured Markdown incident report.
+
+**Arguments:**
+
+| Argument          | Type     | Required | Description                                              |
+| ----------------- | -------- | -------- | -------------------------------------------------------- |
+| `log_path`        | `string` | Yes      | Path to the primary log file to investigate               |
+| `comparison_path` | `string` | No       | Path to a baseline log file for before/after comparison   |
+| `incident_id`     | `string` | No       | Incident or ticket ID to include in the report header     |
+
+**Registration:**
+
+```go
+srv.AddPrompt(&mcp.Prompt{
+    Name:        "generate_report",
+    Description: "Generate a structured incident report from log analysis",
+    Arguments: []*mcp.PromptArgument{
+        {Name: "log_path", Description: "Path to the primary log file to investigate", Required: true},
+        {Name: "comparison_path", Description: "Path to a baseline log file for before/after comparison", Required: false},
+        {Name: "incident_id", Description: "Incident or ticket ID to include in the report header", Required: false},
+    },
+}, handleGenerateReport)
+```
+
+**Prompt Text:**
+
+The prompt returns a single `user` role message. The text is constructed from `log_path` and the optional arguments.
+
+When `incident_id` is provided, the report header instruction includes it:
+> Include the incident ID "{incident_id}" in the report header.
+
+When `comparison_path` is provided, a diff step is included:
+> **Comparison Analysis**: Use the diff_logs tool to compare "{log_path}" (target) against "{comparison_path}" (baseline). Report new errors, resolved errors, rate changes, source changes, and throughput shifts.
+
+When `comparison_path` is omitted, the diff step is replaced with:
+> **Comparison Analysis**: No baseline file was provided, so skip the comparison step.
+
+The full prompt text (with all optional sections present):
+
+> Generate a comprehensive incident report by analyzing the log file at "{log_path}".
+> Include the incident ID "{incident_id}" in the report header.
+>
+> Follow this structured investigation process, using the tools listed for each step:
+>
+> 1. **Executive Summary** (after completing all steps below):
+>    Summarize the incident in 2-3 sentences: what happened, when, impact, and current status.
+>
+> 2. **System Overview**: Use summarize_logs to establish baseline metrics:
+>    - File size, time range, and total line count
+>    - Log volume and throughput (lines/minute)
+>    - Detected log format
+>
+> 3. **Error Analysis**: Use extract_errors to identify and cluster all error types:
+>    - List the top 10 error clusters by frequency
+>    - Note error rate (errors/hour and percentage of all lines)
+>    - Identify any error patterns that suggest a root cause
+>
+> 4. **Anomaly Detection**: Use detect_anomalies to find unusual patterns:
+>    - Error spikes (sudden increases in error rate)
+>    - Gaps in logging (possible outages or restarts)
+>    - Rate changes (load shifts)
+>    - New error types not seen before
+>
+> 5. **Comparison Analysis**: Use the diff_logs tool to compare "{log_path}" (target) against "{comparison_path}" (baseline). Report new errors, resolved errors, rate changes, source changes, and throughput shifts.
+>
+> 6. **Timeline**: Use the timeline tool to build a chronological sequence of significant events:
+>    - When did the incident start?
+>    - What were the key events leading up to the incident?
+>    - When was it resolved (if applicable)?
+>
+> 7. **Deep Dive**: For the top 3 most significant errors, use search_logs with context_lines=5 to examine surrounding context. Look for:
+>    - What triggered each error
+>    - Whether errors cascade (one causing another)
+>    - Any recovery attempts visible in the logs
+>
+> 8. **Report**: Compile all findings into a structured Markdown report with these sections:
+>    - **Incident Report: {incident_id}** (header)
+>    - **Executive Summary**
+>    - **Timeline of Events** (chronological table)
+>    - **Error Analysis** (clusters, rates, patterns)
+>    - **Anomalies Detected**
+>    - **Comparison with Baseline** (if comparison_path was provided)
+>    - **Root Cause Analysis** (your assessment based on evidence)
+>    - **Impact Assessment** (what was affected, duration, severity)
+>    - **Recommendations** (prioritized remediation steps)
+>    - **Appendix: Raw Data** (key metrics, tool outputs referenced)
+>
+> Be specific with numbers, timestamps, and evidence from the logs. Every claim in the report should be backed by data from one of the tools.
+
+**Example Usage Scenarios:**
+
+1. An SRE says "generate a report for the outage in /var/log/app.log, incident INC-2025-042" — the AI follows the full workflow with the incident ID in the header.
+2. A developer says "compare today's logs against yesterday's and write a report" providing both paths — the AI includes the diff_logs comparison section.
+3. A team lead says "analyze /var/log/nginx/error.log and write up what happened" — the AI skips the comparison step and omits the incident ID.

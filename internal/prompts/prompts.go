@@ -26,6 +26,16 @@ func Register(srv *mcp.Server) {
 			{Name: "log_path", Description: "Path to the log file to assess", Required: true},
 		},
 	}, handleLogHealthCheck)
+
+	srv.AddPrompt(&mcp.Prompt{
+		Name:        "generate_report",
+		Description: "Generate a structured incident report from log analysis",
+		Arguments: []*mcp.PromptArgument{
+			{Name: "log_path", Description: "Path to the primary log file to investigate", Required: true},
+			{Name: "comparison_path", Description: "Path to a baseline log file for before/after comparison", Required: false},
+			{Name: "incident_id", Description: "Incident or ticket ID to include in the report header", Required: false},
+		},
+	}, handleGenerateReport)
 }
 
 // handleInvestigateError returns a structured error investigation prompt.
@@ -111,6 +121,96 @@ Use the following tools to conduct a comprehensive assessment:
    - **Summary**: A one-paragraph executive summary
 
 Be specific with numbers and evidence from the logs.`, logPath)
+
+	return &mcp.GetPromptResult{
+		Messages: []*mcp.PromptMessage{
+			{Role: "user", Content: &mcp.TextContent{Text: text}},
+		},
+	}, nil
+}
+
+// handleGenerateReport returns a structured incident report generation prompt.
+func handleGenerateReport(_ context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+	logPath := req.Params.Arguments["log_path"]
+	if logPath == "" {
+		return nil, fmt.Errorf("missing required argument: log_path")
+	}
+
+	comparisonPath := req.Params.Arguments["comparison_path"]
+	incidentID := req.Params.Arguments["incident_id"]
+
+	var incidentSentence string
+	if incidentID != "" {
+		incidentSentence = fmt.Sprintf("\nInclude the incident ID %q in the report header.", incidentID)
+	}
+
+	var comparisonStep string
+	if comparisonPath != "" {
+		comparisonStep = fmt.Sprintf(`5. **Comparison Analysis**: Use the diff_logs tool to compare %q (target) against %q (baseline). Report new errors, resolved errors, rate changes, source changes, and throughput shifts.`, logPath, comparisonPath)
+	} else {
+		comparisonStep = "5. **Comparison Analysis**: No baseline file was provided, so skip the comparison step."
+	}
+
+	var reportHeader string
+	if incidentID != "" {
+		reportHeader = fmt.Sprintf("**Incident Report: %s** (header)", incidentID)
+	} else {
+		reportHeader = "**Incident Report** (header)"
+	}
+
+	var comparisonSection string
+	if comparisonPath != "" {
+		comparisonSection = "\n   - **Comparison with Baseline** (new errors, resolved errors, rate changes)"
+	}
+
+	text := fmt.Sprintf(`Generate a comprehensive incident report by analyzing the log file at %q.%s
+
+Follow this structured investigation process, using the tools listed for each step:
+
+1. **Executive Summary** (after completing all steps below):
+   Summarize the incident in 2-3 sentences: what happened, when, impact, and current status.
+
+2. **System Overview**: Use summarize_logs to establish baseline metrics:
+   - File size, time range, and total line count
+   - Log volume and throughput (lines/minute)
+   - Detected log format
+
+3. **Error Analysis**: Use extract_errors to identify and cluster all error types:
+   - List the top 10 error clusters by frequency
+   - Note error rate (errors/hour and percentage of all lines)
+   - Identify any error patterns that suggest a root cause
+
+4. **Anomaly Detection**: Use detect_anomalies to find unusual patterns:
+   - Error spikes (sudden increases in error rate)
+   - Gaps in logging (possible outages or restarts)
+   - Rate changes (load shifts)
+   - New error types not seen before
+
+%s
+
+6. **Timeline**: Use the timeline tool to build a chronological sequence of significant events:
+   - When did the incident start?
+   - What were the key events leading up to the incident?
+   - When was it resolved (if applicable)?
+
+7. **Deep Dive**: For the top 3 most significant errors, use search_logs with context_lines=5 to examine surrounding context. Look for:
+   - What triggered each error
+   - Whether errors cascade (one causing another)
+   - Any recovery attempts visible in the logs
+
+8. **Report**: Compile all findings into a structured Markdown report with these sections:
+   - %s
+   - **Executive Summary**
+   - **Timeline of Events** (chronological table)
+   - **Error Analysis** (clusters, rates, patterns)
+   - **Anomalies Detected**%s
+   - **Root Cause Analysis** (your assessment based on evidence)
+   - **Impact Assessment** (what was affected, duration, severity)
+   - **Recommendations** (prioritized remediation steps)
+   - **Appendix: Raw Data** (key metrics, tool outputs referenced)
+
+Be specific with numbers, timestamps, and evidence from the logs. Every claim in the report should be backed by data from one of the tools.`,
+		logPath, incidentSentence, comparisonStep, reportHeader, comparisonSection)
 
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{
