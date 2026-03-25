@@ -1,4 +1,4 @@
-// Package tools implements the 12 MCP tool handlers for log analysis.
+// Package tools implements the 15 MCP tool handlers for log analysis.
 package tools
 
 import (
@@ -68,6 +68,21 @@ func Register(srv *mcp.Server) {
 		Name:        "diff_logs",
 		Description: "Compare two log files or two time periods within a single file and highlight differences: new error types, resolved errors, rate changes, source changes, and throughput shifts. Useful for before/after deployment comparisons, incident investigation, and trend analysis.",
 	}, handleDiffLogs)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "run_remote_command",
+		Description: "Execute a command on one or more remote hosts via SSH. Returns stdout, stderr, and exit code per host. Useful for custom log discovery, quick system checks, and flexible remote operations.",
+	}, handleRunRemoteCommand)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "discover_remote_logs",
+		Description: "Discover log files and systemd journal units on remote hosts via SSH. Scans standard log locations (/var/log) by default, detects journald units, and supports custom search paths and commands.",
+	}, handleDiscoverRemoteLogs)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "gather_remote_logs",
+		Description: "Download log files and export systemd journal units from remote hosts to local temporary files. Returns local paths that can be passed directly to other analysis tools like summarize_logs, extract_errors, correlate_logs, and diff_logs.",
+	}, handleGatherRemoteLogs)
 }
 
 func handleReadLogs(_ context.Context, _ *mcp.CallToolRequest, input ReadLogsInput) (*mcp.CallToolResult, ReadLogsOutput, error) {
@@ -162,6 +177,30 @@ func handleDiffLogs(_ context.Context, _ *mcp.CallToolRequest, input DiffLogsInp
 	result, err := RunDiffLogs(input)
 	if err != nil {
 		return nil, DiffLogsOutput{}, err
+	}
+	return nil, result, nil
+}
+
+func handleRunRemoteCommand(_ context.Context, _ *mcp.CallToolRequest, input RunRemoteCommandInput) (*mcp.CallToolResult, RunRemoteCommandOutput, error) {
+	result, err := RunRunRemoteCommand(input)
+	if err != nil {
+		return nil, RunRemoteCommandOutput{}, err
+	}
+	return nil, result, nil
+}
+
+func handleDiscoverRemoteLogs(_ context.Context, _ *mcp.CallToolRequest, input DiscoverRemoteLogsInput) (*mcp.CallToolResult, DiscoverRemoteLogsOutput, error) {
+	result, err := RunDiscoverRemoteLogs(input)
+	if err != nil {
+		return nil, DiscoverRemoteLogsOutput{}, err
+	}
+	return nil, result, nil
+}
+
+func handleGatherRemoteLogs(_ context.Context, _ *mcp.CallToolRequest, input GatherRemoteLogsInput) (*mcp.CallToolResult, GatherRemoteLogsOutput, error) {
+	result, err := RunGatherRemoteLogs(input)
+	if err != nil {
+		return nil, GatherRemoteLogsOutput{}, err
 	}
 	return nil, result, nil
 }

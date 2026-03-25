@@ -38,13 +38,13 @@ func registerTempFile(path string) {
 	tempFiles = append(tempFiles, path)
 }
 
-// CleanupTempFiles removes all registered temp files. Called from main during shutdown.
+// CleanupTempFiles removes all registered temp files and directories. Called from main during shutdown.
 func CleanupTempFiles() {
 	tempFilesMu.Lock()
 	defer tempFilesMu.Unlock()
 	for _, path := range tempFiles {
-		if err := os.Remove(path); err != nil {
-			slog.Error("failed to remove temp file", "path", path, "error", err)
+		if err := os.RemoveAll(path); err != nil {
+			slog.Error("failed to remove temp path", "path", path, "error", err)
 		}
 	}
 	tempFiles = nil

@@ -201,7 +201,7 @@ type diffLogsResult struct {
 	ChangedSources     []sourceDiff  `json:"changed_sources"`
 }
 
-func TestListToolsReturnsAll12(t *testing.T) {
+func TestListToolsReturnsAll15(t *testing.T) {
 	session := setupTestServer(t)
 
 	resp, err := session.ListTools(context.Background(), nil)
@@ -210,22 +210,25 @@ func TestListToolsReturnsAll12(t *testing.T) {
 	}
 
 	expected := map[string]bool{
-		"read_logs":        false,
-		"tail_logs":        false,
-		"search_logs":      false,
-		"parse_logs":       false,
-		"filter_logs":      false,
-		"extract_errors":   false,
-		"summarize_logs":   false,
-		"detect_anomalies": false,
-		"timeline":         false,
-		"correlate_logs":   false,
-		"decompress_file":  false,
-		"diff_logs":        false,
+		"read_logs":            false,
+		"tail_logs":            false,
+		"search_logs":          false,
+		"parse_logs":           false,
+		"filter_logs":          false,
+		"extract_errors":       false,
+		"summarize_logs":       false,
+		"detect_anomalies":     false,
+		"timeline":             false,
+		"correlate_logs":       false,
+		"decompress_file":      false,
+		"diff_logs":            false,
+		"run_remote_command":   false,
+		"discover_remote_logs": false,
+		"gather_remote_logs":   false,
 	}
 
-	if len(resp.Tools) != 12 {
-		t.Errorf("expected 12 tools, got %d", len(resp.Tools))
+	if len(resp.Tools) != 15 {
+		t.Errorf("expected 15 tools, got %d", len(resp.Tools))
 	}
 
 	for _, tool := range resp.Tools {
@@ -906,7 +909,7 @@ func TestDecompressFileThenMultiTool(t *testing.T) {
 	}
 	type summarizeResult struct {
 		FileInfo      summarizeFileInfo `json:"file_info"`
-		LinesAnalyzed int              `json:"lines_analyzed"`
+		LinesAnalyzed int               `json:"lines_analyzed"`
 	}
 	summary := callTool[summarizeResult](t, session, "summarize_logs", map[string]any{
 		"path": tempPath,
