@@ -1,6 +1,7 @@
 package fileutil
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -22,6 +23,11 @@ type TailResult struct {
 func TailLines(path string, numLines int) (TailResult, error) {
 	if numLines < 1 {
 		numLines = 100
+	}
+
+	// Compressed files are not seekable — use streaming fallback.
+	if IsCompressed(path) {
+		return tailLinesStreaming(path, numLines)
 	}
 
 	f, err := os.Open(path)
@@ -162,4 +168,73 @@ func stripCR(s string) string {
 		return s[:len(s)-1]
 	}
 	return s
+}
+
+// tailLinesStreaming reads a compressed file from beginning to end, keeping the
+// last numLines lines in a ring buffer. This is O(file size) rather than O(N),
+// but is the only option for non-seekable compressed streams.
+func tailLinesStreaming(path string, numLines int) (TailResult, error) {
+	rc, compressedSize, err := OpenReader(path)
+	if err != nil {
+		return TailResult{}, err
+	}
+	defer rc.Close()
+
+	// Ring buffer: fixed-size slice, write position wraps around.
+	ring := make([]string, numLines)
+	ringPos := 0
+	totalLines := 0
+
+	scanner := bufio.NewScanner(rc)
+	scanner.Buffer(make([]byte, maxScannerBuf), maxScannerBuf)
+
+	for scanner.Scan() {
+		ring[ringPos] = scanner.Text()
+		ringPos = (ringPos + 1) % numLines
+		totalLines++
+	}
+	if err := scanner.Err(); err != nil {
+		return TailResult{}, fmt.Errorf("scan compressed %s: %w", path, err)
+	}
+
+	if totalLines == 0 {
+		return TailResult{
+			Lines:      []LineRecord{},
+			TotalLines: 0,
+			FileSize:   compressedSize,
+		}, nil
+	}
+
+	// Extract lines from the ring buffer in chronological order.
+	count := numLines
+	if totalLines < numLines {
+		count = totalLines
+	}
+
+	lines := make([]string, count)
+	// The oldest retained line is at ringPos (or 0 if totalLines < numLines).
+	readPos := ringPos - count
+	if readPos < 0 {
+		readPos += numLines
+	}
+	for i := 0; i < count; i++ {
+		lines[i] = ring[(readPos+i)%numLines]
+	}
+
+	// Build result with correct 1-based line numbers.
+	// TotalLines is exact because we read the entire stream.
+	startLineNum := totalLines - count + 1
+	records := make([]LineRecord, count)
+	for i, text := range lines {
+		records[i] = LineRecord{
+			LineNumber: startLineNum + i,
+			Text:       text,
+		}
+	}
+
+	return TailResult{
+		Lines:      records,
+		TotalLines: totalLines,
+		FileSize:   compressedSize,
+	}, nil
 }

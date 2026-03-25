@@ -2,8 +2,11 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/trickyearlobe/log-analysis-mcp/internal/tools"
 )
 
 // Local anonymous-style structs for unmarshaling tool output over the wire.
@@ -156,7 +159,7 @@ type correlateLogsResult struct {
 	GroupsReturned   int               `json:"groups_returned"`
 }
 
-func TestListToolsReturnsAll10(t *testing.T) {
+func TestListToolsReturnsAll11(t *testing.T) {
 	session := setupTestServer(t)
 
 	resp, err := session.ListTools(context.Background(), nil)
@@ -175,10 +178,11 @@ func TestListToolsReturnsAll10(t *testing.T) {
 		"detect_anomalies": false,
 		"timeline":         false,
 		"correlate_logs":   false,
+		"decompress_file":  false,
 	}
 
-	if len(resp.Tools) != 10 {
-		t.Errorf("expected 10 tools, got %d", len(resp.Tools))
+	if len(resp.Tools) != 11 {
+		t.Errorf("expected 11 tools, got %d", len(resp.Tools))
 	}
 
 	for _, tool := range resp.Tools {
@@ -671,5 +675,224 @@ func TestBinaryFileRejection(t *testing.T) {
 				t.Errorf("%s: expected error to mention 'binary', got: %s", toolName, errText)
 			}
 		})
+	}
+}
+
+// --- Compressed file integration tests ---
+
+type decompressFileResult struct {
+	TempPath         string `json:"temp_path"`
+	OriginalPath     string `json:"original_path"`
+	CompressedSize   int64  `json:"compressed_size"`
+	DecompressedSize int64  `json:"decompressed_size"`
+	Note             string `json:"note"`
+}
+
+func TestReadLogsGzipRoundTrip(t *testing.T) {
+	session := setupTestServer(t)
+	dir := t.TempDir()
+	lines := jsonLogLines()
+	path := writeGzipLogFile(t, dir, "app.log.gz", lines)
+
+	out := callTool[readLogsResult](t, session, "read_logs", map[string]any{
+		"path": path,
+	})
+
+	if len(out.Lines) != len(lines) {
+		t.Fatalf("expected %d lines, got %d", len(lines), len(out.Lines))
+	}
+	if out.HasMore {
+		t.Error("expected has_more=false")
+	}
+	if !strings.Contains(out.Lines[0].Content, "server started") {
+		t.Errorf("first line mismatch: %s", out.Lines[0].Content)
+	}
+	if out.FileSizeBytes <= 0 {
+		t.Error("expected file_size_bytes > 0")
+	}
+}
+
+func TestReadLogsZipRoundTrip(t *testing.T) {
+	session := setupTestServer(t)
+	dir := t.TempDir()
+	lines := jsonLogLines()
+	path := writeZipLogFile(t, dir, "app.log.zip", "app.log", lines)
+
+	out := callTool[readLogsResult](t, session, "read_logs", map[string]any{
+		"path": path,
+	})
+
+	if len(out.Lines) != len(lines) {
+		t.Fatalf("expected %d lines, got %d", len(lines), len(out.Lines))
+	}
+	if !strings.Contains(out.Lines[0].Content, "server started") {
+		t.Errorf("first line mismatch: %s", out.Lines[0].Content)
+	}
+}
+
+func TestTailLogsGzipRoundTrip(t *testing.T) {
+	session := setupTestServer(t)
+	dir := t.TempDir()
+	lines := jsonLogLines()
+	path := writeGzipLogFile(t, dir, "app.log.gz", lines)
+
+	out := callTool[tailLogsResult](t, session, "tail_logs", map[string]any{
+		"path":      path,
+		"num_lines": 3,
+	})
+
+	if len(out.Lines) != 3 {
+		t.Fatalf("expected 3 lines, got %d", len(out.Lines))
+	}
+	if out.TotalLines != len(lines) {
+		t.Errorf("expected total_lines=%d, got %d", len(lines), out.TotalLines)
+	}
+	if !strings.Contains(out.Lines[2].Content, "shutting down") {
+		t.Errorf("last line mismatch: %s", out.Lines[2].Content)
+	}
+}
+
+func TestDecompressFileRoundTrip(t *testing.T) {
+	session := setupTestServer(t)
+	dir := t.TempDir()
+	lines := jsonLogLines()
+	path := writeGzipLogFile(t, dir, "app.log.gz", lines)
+
+	t.Cleanup(tools.CleanupTempFiles)
+
+	out := callTool[decompressFileResult](t, session, "decompress_file", map[string]any{
+		"path": path,
+	})
+
+	if out.OriginalPath != path {
+		t.Errorf("original_path mismatch: got %s, want %s", out.OriginalPath, path)
+	}
+	if out.CompressedSize <= 0 {
+		t.Error("expected compressed_size > 0")
+	}
+	if out.DecompressedSize <= 0 {
+		t.Error("expected decompressed_size > 0")
+	}
+	if out.DecompressedSize <= out.CompressedSize {
+		t.Errorf("decompressed (%d) should be larger than compressed (%d)", out.DecompressedSize, out.CompressedSize)
+	}
+	if out.TempPath == "" {
+		t.Fatal("expected non-empty temp_path")
+	}
+	if out.Note == "" {
+		t.Error("expected non-empty note")
+	}
+
+	// Verify the temp file is a plain file that other tools can read
+	readOut := callTool[readLogsResult](t, session, "read_logs", map[string]any{
+		"path": out.TempPath,
+	})
+	if len(readOut.Lines) != len(lines) {
+		t.Fatalf("read_logs on temp file: expected %d lines, got %d", len(lines), len(readOut.Lines))
+	}
+
+	// Verify tail_logs also works on the temp file with O(N) seek
+	tailOut := callTool[tailLogsResult](t, session, "tail_logs", map[string]any{
+		"path":      out.TempPath,
+		"num_lines": 2,
+	})
+	if len(tailOut.Lines) != 2 {
+		t.Fatalf("tail_logs on temp file: expected 2 lines, got %d", len(tailOut.Lines))
+	}
+}
+
+func TestDecompressFileNotCompressedError(t *testing.T) {
+	session := setupTestServer(t)
+	dir := t.TempDir()
+	path := writeLogFile(t, dir, "plain.log", jsonLogLines())
+
+	errText := callToolExpectError(t, session, "decompress_file", map[string]any{
+		"path": path,
+	})
+
+	if !strings.Contains(errText, "compressed extension") {
+		t.Errorf("expected error about compressed extension, got: %s", errText)
+	}
+}
+
+func TestSearchLogsGzipRoundTrip(t *testing.T) {
+	session := setupTestServer(t)
+	dir := t.TempDir()
+	path := writeGzipLogFile(t, dir, "app.log.gz", jsonLogLines())
+
+	out := callTool[searchLogsResult](t, session, "search_logs", map[string]any{
+		"path":    path,
+		"pattern": "ERROR",
+	})
+
+	if out.TotalMatches != 2 {
+		t.Errorf("expected 2 ERROR matches, got %d", out.TotalMatches)
+	}
+}
+
+func TestDecompressFileThenMultiTool(t *testing.T) {
+	// Simulate the recommended workflow: decompress once, then use temp path
+	// for multiple tools.
+	session := setupTestServer(t)
+	dir := t.TempDir()
+
+	// Create a gzip file with enough data to make decompression worthwhile.
+	var lines []string
+	for i := 1; i <= 50; i++ {
+		level := "INFO"
+		if i%10 == 0 {
+			level = "ERROR"
+		}
+		lines = append(lines, fmt.Sprintf(
+			`{"timestamp":"2025-01-15T10:%02d:00Z","level":"%s","msg":"event %d","source":"app"}`,
+			i%60, level, i,
+		))
+	}
+	path := writeGzipLogFile(t, dir, "big.log.gz", lines)
+	t.Cleanup(tools.CleanupTempFiles)
+
+	// Step 1: Decompress
+	decomp := callTool[decompressFileResult](t, session, "decompress_file", map[string]any{
+		"path": path,
+	})
+	tempPath := decomp.TempPath
+
+	// Step 2: summarize_logs on the temp file
+	type summarizeFileInfo struct {
+		TotalLines int `json:"total_lines"`
+	}
+	type summarizeResult struct {
+		FileInfo      summarizeFileInfo `json:"file_info"`
+		LinesAnalyzed int              `json:"lines_analyzed"`
+	}
+	summary := callTool[summarizeResult](t, session, "summarize_logs", map[string]any{
+		"path": tempPath,
+	})
+	if summary.LinesAnalyzed != 50 {
+		t.Errorf("summarize: expected lines_analyzed=50, got %d", summary.LinesAnalyzed)
+	}
+	if summary.FileInfo.TotalLines != 50 {
+		t.Errorf("summarize: expected file_info.total_lines=50, got %d", summary.FileInfo.TotalLines)
+	}
+
+	// Step 3: search on the temp file
+	search := callTool[searchLogsResult](t, session, "search_logs", map[string]any{
+		"path":    tempPath,
+		"pattern": "ERROR",
+	})
+	if search.TotalMatches != 5 {
+		t.Errorf("search: expected 5 ERROR matches, got %d", search.TotalMatches)
+	}
+
+	// Step 4: tail on the temp file (uses fast O(N) seek, not streaming)
+	tail := callTool[tailLogsResult](t, session, "tail_logs", map[string]any{
+		"path":      tempPath,
+		"num_lines": 5,
+	})
+	if len(tail.Lines) != 5 {
+		t.Errorf("tail: expected 5 lines, got %d", len(tail.Lines))
+	}
+	if tail.TotalLines != 50 {
+		t.Errorf("tail: expected total_lines=50, got %d", tail.TotalLines)
 	}
 }

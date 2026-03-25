@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 )
 
 // maxScannerBuf is the maximum buffer size for the line scanner (1 MB).
@@ -36,18 +35,18 @@ func ReadLines(path string, startLine, numLines int) (ReadLinesResult, error) {
 		return ReadLinesResult{}, fmt.Errorf("invalid num_lines %d: must be >= 1", numLines)
 	}
 
-	f, err := os.Open(path)
+	rc, _, err := OpenReader(path)
 	if err != nil {
-		return ReadLinesResult{}, fmt.Errorf("open %s: %w", path, err)
+		return ReadLinesResult{}, err
 	}
-	defer f.Close()
+	defer rc.Close()
 
 	result := ReadLinesResult{
 		Lines: []LineRecord{},
 	}
 
 	// Try the scanner-based approach first.
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(rc)
 	scanner.Buffer(make([]byte, maxScannerBuf), maxScannerBuf)
 
 	lineNum := 0
@@ -90,17 +89,17 @@ func isTokenTooLong(err error) bool {
 // that handles lines of any length. It is invoked when the scanner fails
 // on a line exceeding maxScannerBuf.
 func readLinesWithFallback(path string, startLine, numLines int) (ReadLinesResult, error) {
-	f, err := os.Open(path)
+	rc, _, err := OpenReader(path)
 	if err != nil {
-		return ReadLinesResult{}, fmt.Errorf("open (fallback) %s: %w", path, err)
+		return ReadLinesResult{}, err
 	}
-	defer f.Close()
+	defer rc.Close()
 
 	result := ReadLinesResult{
 		Lines: []LineRecord{},
 	}
 
-	reader := bufio.NewReader(f)
+	reader := bufio.NewReader(rc)
 	lineNum := 0
 
 	for {

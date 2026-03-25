@@ -1,6 +1,7 @@
 package fileutil
 
 import (
+	"compress/gzip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -178,5 +179,52 @@ func TestCheckBinaryPathInErrorMessage(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), path) {
 		t.Errorf("error %q does not contain path %q", err.Error(), path)
+	}
+}
+
+// createGzipBinaryFile creates a gzip file containing bytes with null characters.
+func createGzipBinaryFile(t *testing.T, dir, name string) string {
+	t.Helper()
+	content := []byte("binary\x00content\x00here\n")
+	path := filepath.Join(dir, name)
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create gzip binary file: %v", err)
+	}
+	gw := gzip.NewWriter(f)
+	if _, err := gw.Write(content); err != nil {
+		f.Close()
+		t.Fatalf("write gzip binary data: %v", err)
+	}
+	if err := gw.Close(); err != nil {
+		f.Close()
+		t.Fatalf("close gzip writer: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("close gzip file: %v", err)
+	}
+	return path
+}
+
+func TestCheckBinary_GzipTextFile(t *testing.T) {
+	dir := t.TempDir()
+	path := createGzipFile(t, dir, "text.log.gz", "this is normal text\nwith multiple lines\n")
+
+	err := CheckBinary(path)
+	if err != nil {
+		t.Errorf("CheckBinary() on gzip text file returned error: %v", err)
+	}
+}
+
+func TestCheckBinary_GzipBinaryFile(t *testing.T) {
+	dir := t.TempDir()
+	path := createGzipBinaryFile(t, dir, "binary.log.gz")
+
+	err := CheckBinary(path)
+	if err == nil {
+		t.Fatal("expected binary detection error for gzip file with null bytes, got nil")
+	}
+	if !strings.Contains(err.Error(), "binary file detected") {
+		t.Errorf("error %q does not contain %q", err.Error(), "binary file detected")
 	}
 }

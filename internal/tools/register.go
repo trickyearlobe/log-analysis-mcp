@@ -1,4 +1,4 @@
-// Package tools implements the 10 MCP tool handlers for log analysis.
+// Package tools implements the 11 MCP tool handlers for log analysis.
 package tools
 
 import (
@@ -58,6 +58,11 @@ func Register(srv *mcp.Server) {
 		Name:        "correlate_logs",
 		Description: "Correlate events across multiple log files by a shared field like request_id or trace_id.",
 	}, handleCorrelateLogs)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "decompress_file",
+		Description: "Decompress a compressed log file (.gz, .bz2, .zip) to a temporary plain-text file on disk. Use this before running multiple tools on the same compressed file — it pays the decompression cost once, then all subsequent tools get full seekable performance. For a single tool call, you can pass the compressed path directly — all tools handle decompression transparently.",
+	}, handleDecompressFile)
 }
 
 func handleReadLogs(_ context.Context, _ *mcp.CallToolRequest, input ReadLogsInput) (*mcp.CallToolResult, ReadLogsOutput, error) {
@@ -136,6 +141,14 @@ func handleCorrelateLogs(_ context.Context, _ *mcp.CallToolRequest, input Correl
 	result, err := RunCorrelateLogs(input)
 	if err != nil {
 		return nil, CorrelateLogsOutput{}, err
+	}
+	return nil, result, nil
+}
+
+func handleDecompressFile(_ context.Context, _ *mcp.CallToolRequest, input DecompressFileInput) (*mcp.CallToolResult, DecompressFileOutput, error) {
+	result, err := RunDecompressFile(input)
+	if err != nil {
+		return nil, DecompressFileOutput{}, err
 	}
 	return nil, result, nil
 }

@@ -1,6 +1,10 @@
 package fileutil
 
 import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -364,4 +368,138 @@ func setUnreadable(path string) error {
 // restoreReadable restores read permission on a file.
 func restoreReadable(path string) {
 	chmod644(path)
+}
+
+func TestTailLines_GzipFile(t *testing.T) {
+	// Build content: "line 01" through "line 20"
+	var b strings.Builder
+	for i := 1; i <= 20; i++ {
+		fmt.Fprintf(&b, "line %02d\n", i)
+	}
+	content := b.String()
+	dir := t.TempDir()
+	path := createGzipFile(t, dir, "tail.log.gz", content)
+
+	t.Run("tail last 5", func(t *testing.T) {
+		got, err := TailLines(path, 5)
+		if err != nil {
+			t.Fatalf("TailLines() error = %v", err)
+		}
+		if len(got.Lines) != 5 {
+			t.Fatalf("got %d lines, want 5", len(got.Lines))
+		}
+		for i, wantNum := range []int{16, 17, 18, 19, 20} {
+			wantText := fmt.Sprintf("line %02d", wantNum)
+			if got.Lines[i].LineNumber != wantNum {
+				t.Errorf("line[%d].LineNumber = %d, want %d", i, got.Lines[i].LineNumber, wantNum)
+			}
+			if got.Lines[i].Text != wantText {
+				t.Errorf("line[%d].Text = %q, want %q", i, got.Lines[i].Text, wantText)
+			}
+		}
+		if got.TotalLines != 20 {
+			t.Errorf("TotalLines = %d, want 20", got.TotalLines)
+		}
+	})
+
+	t.Run("tail last 100", func(t *testing.T) {
+		got, err := TailLines(path, 100)
+		if err != nil {
+			t.Fatalf("TailLines() error = %v", err)
+		}
+		if len(got.Lines) != 20 {
+			t.Fatalf("got %d lines, want 20", len(got.Lines))
+		}
+		if got.TotalLines != 20 {
+			t.Errorf("TotalLines = %d, want 20", got.TotalLines)
+		}
+		// Verify first and last lines
+		if got.Lines[0].Text != "line 01" {
+			t.Errorf("first line = %q, want %q", got.Lines[0].Text, "line 01")
+		}
+		if got.Lines[19].Text != "line 20" {
+			t.Errorf("last line = %q, want %q", got.Lines[19].Text, "line 20")
+		}
+	})
+}
+
+func TestTailLines_Bzip2File(t *testing.T) {
+	if _, err := exec.LookPath("bzip2"); err != nil {
+		t.Skip("bzip2 command not available")
+	}
+
+	// Build content: "line 01" through "line 20"
+	var b strings.Builder
+	for i := 1; i <= 20; i++ {
+		fmt.Fprintf(&b, "line %02d\n", i)
+	}
+	content := b.String()
+	dir := t.TempDir()
+
+	plainPath := filepath.Join(dir, "tail.log")
+	if err := os.WriteFile(plainPath, []byte(content), 0644); err != nil {
+		t.Fatalf("write plain file: %v", err)
+	}
+	cmd := exec.Command("bzip2", plainPath)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("bzip2 command failed: %v: %s", err, out)
+	}
+	bz2Path := plainPath + ".bz2"
+
+	t.Run("tail last 5", func(t *testing.T) {
+		got, err := TailLines(bz2Path, 5)
+		if err != nil {
+			t.Fatalf("TailLines() error = %v", err)
+		}
+		if len(got.Lines) != 5 {
+			t.Fatalf("got %d lines, want 5", len(got.Lines))
+		}
+		for i, wantNum := range []int{16, 17, 18, 19, 20} {
+			wantText := fmt.Sprintf("line %02d", wantNum)
+			if got.Lines[i].LineNumber != wantNum {
+				t.Errorf("line[%d].LineNumber = %d, want %d", i, got.Lines[i].LineNumber, wantNum)
+			}
+			if got.Lines[i].Text != wantText {
+				t.Errorf("line[%d].Text = %q, want %q", i, got.Lines[i].Text, wantText)
+			}
+		}
+		if got.TotalLines != 20 {
+			t.Errorf("TotalLines = %d, want 20", got.TotalLines)
+		}
+	})
+
+	t.Run("tail last 100", func(t *testing.T) {
+		got, err := TailLines(bz2Path, 100)
+		if err != nil {
+			t.Fatalf("TailLines() error = %v", err)
+		}
+		if len(got.Lines) != 20 {
+			t.Fatalf("got %d lines, want 20", len(got.Lines))
+		}
+		if got.TotalLines != 20 {
+			t.Errorf("TotalLines = %d, want 20", got.TotalLines)
+		}
+		if got.Lines[0].Text != "line 01" {
+			t.Errorf("first line = %q, want %q", got.Lines[0].Text, "line 01")
+		}
+		if got.Lines[19].Text != "line 20" {
+			t.Errorf("last line = %q, want %q", got.Lines[19].Text, "line 20")
+		}
+	})
+}
+
+func TestTailLines_EmptyGzipFile(t *testing.T) {
+	dir := t.TempDir()
+	path := createGzipFile(t, dir, "empty.log.gz", "")
+
+	got, err := TailLines(path, 10)
+	if err != nil {
+		t.Fatalf("TailLines() error = %v", err)
+	}
+	if len(got.Lines) != 0 {
+		t.Fatalf("got %d lines, want 0", len(got.Lines))
+	}
+	if got.TotalLines != 0 {
+		t.Errorf("TotalLines = %d, want 0", got.TotalLines)
+	}
 }

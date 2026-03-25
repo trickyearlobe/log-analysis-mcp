@@ -1,6 +1,8 @@
 package integration
 
 import (
+	"archive/zip"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"os"
@@ -228,4 +230,54 @@ func correlationFileB() []string {
 		`{"timestamp":"2025-01-15T10:00:01Z","level":"INFO","msg":"processing started","source":"worker","request_id":"req-002"}`,
 		`{"timestamp":"2025-01-15T10:00:03Z","level":"INFO","msg":"processing complete","source":"worker","request_id":"req-002"}`,
 	}
+}
+
+// writeGzipLogFile creates a .gz file containing the given lines and returns its path.
+func writeGzipLogFile(t *testing.T, dir, name string, lines []string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create gzip file: %v", err)
+	}
+	defer f.Close()
+	gw := gzip.NewWriter(f)
+	content := strings.Join(lines, "\n")
+	if len(lines) > 0 {
+		content += "\n"
+	}
+	if _, err := gw.Write([]byte(content)); err != nil {
+		t.Fatalf("write gzip: %v", err)
+	}
+	if err := gw.Close(); err != nil {
+		t.Fatalf("close gzip: %v", err)
+	}
+	return path
+}
+
+// writeZipLogFile creates a .zip file with a single entry containing the given lines.
+func writeZipLogFile(t *testing.T, dir, name, entryName string, lines []string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create zip file: %v", err)
+	}
+	defer f.Close()
+	zw := zip.NewWriter(f)
+	w, err := zw.Create(entryName)
+	if err != nil {
+		t.Fatalf("create zip entry: %v", err)
+	}
+	content := strings.Join(lines, "\n")
+	if len(lines) > 0 {
+		content += "\n"
+	}
+	if _, err := w.Write([]byte(content)); err != nil {
+		t.Fatalf("write zip entry: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close zip: %v", err)
+	}
+	return path
 }

@@ -1,7 +1,9 @@
 package fileutil
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -373,6 +375,220 @@ func TestReadLinesSingleHugeLine(t *testing.T) {
 	}
 	if got.TotalRead != 1 {
 		t.Errorf("TotalRead = %d, want 1", got.TotalRead)
+	}
+}
+
+// buildCompressedContent creates 10 lines of "line 1" through "line 10".
+func buildCompressedContent() string {
+	var b strings.Builder
+	for i := 1; i <= 10; i++ {
+		fmt.Fprintf(&b, "line %d\n", i)
+	}
+	return b.String()
+}
+
+func TestReadLines_GzipFile(t *testing.T) {
+	dir := t.TempDir()
+	content := buildCompressedContent()
+	path := createGzipFile(t, dir, "test.log.gz", content)
+
+	tests := []struct {
+		name      string
+		startLine int
+		numLines  int
+		wantCount int
+		wantMore  bool
+		wantFirst string
+	}{
+		{
+			name:      "read all lines",
+			startLine: 1,
+			numLines:  20,
+			wantCount: 10,
+			wantMore:  false,
+			wantFirst: "line 1",
+		},
+		{
+			name:      "read first 3 lines",
+			startLine: 1,
+			numLines:  3,
+			wantCount: 3,
+			wantMore:  true,
+			wantFirst: "line 1",
+		},
+		{
+			name:      "read from middle",
+			startLine: 5,
+			numLines:  3,
+			wantCount: 3,
+			wantMore:  true,
+			wantFirst: "line 5",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ReadLines(path, tt.startLine, tt.numLines)
+			if err != nil {
+				t.Fatalf("ReadLines() error = %v", err)
+			}
+			if len(got.Lines) != tt.wantCount {
+				t.Fatalf("got %d lines, want %d", len(got.Lines), tt.wantCount)
+			}
+			if got.HasMore != tt.wantMore {
+				t.Errorf("HasMore = %v, want %v", got.HasMore, tt.wantMore)
+			}
+			if got.Lines[0].Text != tt.wantFirst {
+				t.Errorf("first line = %q, want %q", got.Lines[0].Text, tt.wantFirst)
+			}
+			if got.Lines[0].LineNumber != tt.startLine {
+				t.Errorf("first LineNumber = %d, want %d", got.Lines[0].LineNumber, tt.startLine)
+			}
+		})
+	}
+}
+
+// createBzip2File creates a bzip2-compressed file using the bzip2 command.
+// Returns the path to the .bz2 file.
+func createBzip2File(t *testing.T, dir, name, content string) string {
+	t.Helper()
+	// Write plain text to a temp file, then compress with bzip2.
+	plainName := strings.TrimSuffix(name, ".bz2")
+	plainPath := filepath.Join(dir, plainName)
+	if err := os.WriteFile(plainPath, []byte(content), 0644); err != nil {
+		t.Fatalf("write plain file for bzip2: %v", err)
+	}
+	cmd := exec.Command("bzip2", plainPath)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("bzip2 command failed: %v: %s", err, out)
+	}
+	return plainPath + ".bz2"
+}
+
+func TestReadLines_Bzip2File(t *testing.T) {
+	if _, err := exec.LookPath("bzip2"); err != nil {
+		t.Skip("bzip2 command not available")
+	}
+
+	dir := t.TempDir()
+	content := buildCompressedContent()
+	path := createBzip2File(t, dir, "test.log.bz2", content)
+
+	tests := []struct {
+		name      string
+		startLine int
+		numLines  int
+		wantCount int
+		wantMore  bool
+		wantFirst string
+	}{
+		{
+			name:      "read all lines",
+			startLine: 1,
+			numLines:  20,
+			wantCount: 10,
+			wantMore:  false,
+			wantFirst: "line 1",
+		},
+		{
+			name:      "read first 3 lines",
+			startLine: 1,
+			numLines:  3,
+			wantCount: 3,
+			wantMore:  true,
+			wantFirst: "line 1",
+		},
+		{
+			name:      "read from middle",
+			startLine: 5,
+			numLines:  3,
+			wantCount: 3,
+			wantMore:  true,
+			wantFirst: "line 5",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ReadLines(path, tt.startLine, tt.numLines)
+			if err != nil {
+				t.Fatalf("ReadLines() error = %v", err)
+			}
+			if len(got.Lines) != tt.wantCount {
+				t.Fatalf("got %d lines, want %d", len(got.Lines), tt.wantCount)
+			}
+			if got.HasMore != tt.wantMore {
+				t.Errorf("HasMore = %v, want %v", got.HasMore, tt.wantMore)
+			}
+			if got.Lines[0].Text != tt.wantFirst {
+				t.Errorf("first line = %q, want %q", got.Lines[0].Text, tt.wantFirst)
+			}
+			if got.Lines[0].LineNumber != tt.startLine {
+				t.Errorf("first LineNumber = %d, want %d", got.Lines[0].LineNumber, tt.startLine)
+			}
+		})
+	}
+}
+
+func TestReadLines_ZipFile(t *testing.T) {
+	dir := t.TempDir()
+	content := buildCompressedContent()
+	entries := map[string]string{"test.log": content}
+	path := createZipFile(t, dir, "test.zip", entries)
+
+	tests := []struct {
+		name      string
+		startLine int
+		numLines  int
+		wantCount int
+		wantMore  bool
+		wantFirst string
+	}{
+		{
+			name:      "read all lines",
+			startLine: 1,
+			numLines:  20,
+			wantCount: 10,
+			wantMore:  false,
+			wantFirst: "line 1",
+		},
+		{
+			name:      "read first 3 lines",
+			startLine: 1,
+			numLines:  3,
+			wantCount: 3,
+			wantMore:  true,
+			wantFirst: "line 1",
+		},
+		{
+			name:      "read from middle",
+			startLine: 5,
+			numLines:  3,
+			wantCount: 3,
+			wantMore:  true,
+			wantFirst: "line 5",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ReadLines(path, tt.startLine, tt.numLines)
+			if err != nil {
+				t.Fatalf("ReadLines() error = %v", err)
+			}
+			if len(got.Lines) != tt.wantCount {
+				t.Fatalf("got %d lines, want %d", len(got.Lines), tt.wantCount)
+			}
+			if got.HasMore != tt.wantMore {
+				t.Errorf("HasMore = %v, want %v", got.HasMore, tt.wantMore)
+			}
+			if got.Lines[0].Text != tt.wantFirst {
+				t.Errorf("first line = %q, want %q", got.Lines[0].Text, tt.wantFirst)
+			}
+			if got.Lines[0].LineNumber != tt.startLine {
+				t.Errorf("first LineNumber = %d, want %d", got.Lines[0].LineNumber, tt.startLine)
+			}
+		})
 	}
 }
 

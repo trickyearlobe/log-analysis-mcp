@@ -3,7 +3,6 @@ package fileutil
 import (
 	"fmt"
 	"io"
-	"os"
 )
 
 // binaryCheckSize is the number of bytes to read when checking for binary content.
@@ -13,14 +12,14 @@ const binaryCheckSize = 8192
 // if any null byte (0x00) is found, indicating the file is likely binary.
 // Returns nil if the file appears to be text.
 func CheckBinary(path string) error {
-	f, err := os.Open(path)
+	rc, _, err := OpenReader(path)
 	if err != nil {
-		return fmt.Errorf("open %s: %w", path, err)
+		return err
 	}
-	defer f.Close()
+	defer rc.Close()
 
 	buf := make([]byte, binaryCheckSize)
-	n, err := f.Read(buf)
+	n, err := rc.Read(buf)
 	if err != nil && err != io.EOF {
 		return fmt.Errorf("read %s: %w", path, err)
 	}

@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/trickyearlobe/log-analysis-mcp/internal/server"
+	"github.com/trickyearlobe/log-analysis-mcp/internal/tools"
 )
 
 var version = "0.1.0"
@@ -20,6 +21,7 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+	defer tools.CleanupTempFiles()
 
 	srv := server.New(version)
 	slog.Info("starting log-analysis-mcp", "version", version)
