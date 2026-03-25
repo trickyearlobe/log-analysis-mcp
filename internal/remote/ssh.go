@@ -155,11 +155,18 @@ func (p *ClientPool) Get(target Target) (*ssh.Client, error) {
 	}
 
 	addr := fmt.Sprintf("%s:%d", target.Host, target.Port)
-	client, err := ssh.Dial("tcp", addr, config)
+	conn, err := dialTCP(target.Host, target.Port, p.dialTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("remote: pool: dial %s: %w", key, err)
 	}
 
+	sshConn, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("remote: pool: dial %s: %w", key, err)
+	}
+
+	client := ssh.NewClient(sshConn, chans, reqs)
 	slog.Info("remote: pool: new connection", "target", key)
 	p.clients[key] = client
 	return client, nil

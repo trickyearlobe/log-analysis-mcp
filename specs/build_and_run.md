@@ -4,7 +4,7 @@
 
 ```bash
 # Build the binary
-go build -o log-analysis-mcp ./cmd/log-analysis-mcp
+go build -o bin/log-analysis-mcp ./cmd/log-analysis-mcp
 
 # Run tests
 go test ./...
@@ -29,7 +29,7 @@ LDFLAGS := -ldflags "-s -w -X main.version=$(VERSION)"
 .PHONY: build test install clean lint docker run
 
 build:
-	go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/log-analysis-mcp
+	go build $(LDFLAGS) -o bin/$(BINARY_NAME) ./cmd/log-analysis-mcp
 
 test:
 	go test ./...
@@ -70,11 +70,36 @@ require (
 )
 ```
 
+### macOS Firewall (Remote SSH Tools)
+
+The remote SSH tools (`run_remote_command`, `discover_remote_logs`, `gather_remote_logs`)
+open TCP connections from the Go binary. macOS Application Firewall blocks outbound
+connections from locally-built binaries while allowing signed system binaries like
+`/usr/bin/ssh`. The symptom is `connect: no route to host` even though `ssh <host>`
+works fine from the terminal.
+
+**This is handled automatically.** On the first connection attempt, the server probes
+with `net.Dial`. If that fails on macOS, it falls back to spawning `/usr/bin/ssh -W`
+as a TCP proxy — the system SSH binary is pre-authorized by the firewall. The chosen
+strategy is cached for the lifetime of the process. See `specs/remote.md` §Connection
+Strategy for details.
+
+No firewall configuration or sudo access is required. This works transparently on
+corporate MDM-managed Macs.
+
+> **Optional optimisation:** Adding the binary to the firewall allowlist avoids the
+> ~20ms probe overhead on the first connection:
+> ```bash
+> sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add "$(pwd)/bin/log-analysis-mcp"
+> sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp "$(pwd)/bin/log-analysis-mcp"
+> ```
+> This must be re-run after every rebuild. Linux hosts are not affected.
+
 ### Run Standalone
 
 ```bash
 # Start the MCP server with stdio transport
-./log-analysis-mcp
+./bin/log-analysis-mcp
 ```
 
 The server communicates via stdin/stdout using the MCP JSON-RPC protocol. It does not produce any output to stdout on its own — it waits for MCP client messages. Diagnostic logging goes to stderr via `log/slog`.
@@ -87,19 +112,19 @@ Add the following to `~/Library/Application Support/Claude/claude_desktop_config
 {
   "mcpServers": {
     "log-analysis": {
-      "command": "/absolute/path/to/log-analysis-mcp"
+      "command": "/absolute/path/to/bin/log-analysis-mcp"
     }
   }
 }
 ```
 
-Note: Since the server is a single binary, no `args` are needed — just point `command` directly at the binary.
+Note: Since the server is a single binary, no `args` are needed — just point `command` directly at the binary. Remote SSH tools work automatically on macOS — the server falls back to the system SSH binary if the firewall blocks direct connections.
 
 ### Test with MCP Inspector
 
 ```bash
 # Interactive testing of all tools, resources, and prompts
-npx @modelcontextprotocol/inspector ./log-analysis-mcp
+npx @modelcontextprotocol/inspector ./bin/log-analysis-mcp
 ```
 
 The MCP Inspector provides a web UI at `http://localhost:5173` where you can:

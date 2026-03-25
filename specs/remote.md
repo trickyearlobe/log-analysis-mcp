@@ -3,6 +3,100 @@
 Shared SSH client infrastructure used by `run_remote_command`, `discover_remote_logs`,
 and `gather_remote_logs` tools.
 
+## Prerequisites
+
+### SSH Config Limitations
+
+The Go SSH client (`x/crypto/ssh`) does **not** read `~/.ssh/config`. Features
+that users may rely on in OpenSSH are not available:
+
+- `User` directives — specify user explicitly: `root@host` not just `host`
+- `CanonicalizeHostname` / `CanonicalDomains` — use the FQDN directly
+- `IdentityAgent` — set `SSH_AUTH_SOCK` in the environment instead
+- `ProxyJump` / `ProxyCommand` — not supported
+- `Host` aliases — use the real hostname or IP
+
+Users must pass fully-qualified `[user@]host[:port]` targets to all remote tools.
+
+**Exception:** When the SSH proxy fallback is active (see Connection Strategy below),
+`~/.ssh/config` IS respected for the proxy connection because it shells out to the
+real `/usr/bin/ssh` binary. `User`, `IdentityAgent`, `CanonicalizeHostname`, and
+`ProxyJump` all work through the proxy path. However, the `[user@]host[:port]`
+target format is still required — tool inputs are not resolved through ssh config.
+
+### Host Key Verification
+
+Remote hosts must be present in `~/.ssh/known_hosts` before use:
+
+```
+ssh-keyscan <host> >> ~/.ssh/known_hosts
+```
+
+---
+
+## Connection Strategy
+
+The dialer uses a two-tier strategy to establish TCP connections to remote hosts.
+This handles macOS Application Firewall which blocks outbound TCP from unsigned
+or locally-built Go binaries while allowing signed system binaries like `/usr/bin/ssh`.
+
+### Algorithm
+
+1. **Probe:** On the first connection attempt, try `net.DialTimeout("tcp", host:port, timeout)`.
+2. **If direct dial succeeds:** Cache `strategyDirect`. All future connections use `net.Dial`.
+3. **If direct dial fails AND `runtime.GOOS == "darwin"`:** Fall back to `proxyDial`.
+4. **If direct dial fails AND not darwin:** Return the error immediately (no fallback).
+5. **`proxyDial`:** Spawns `/usr/bin/ssh -W host:port` with `-o BatchMode=yes` and
+   `-o ConnectTimeout=N`. The subprocess stdio is wrapped as a `net.Conn` (`proxyConn`).
+6. **If proxy succeeds:** Cache `strategyProxy`. All future connections use the proxy.
+7. **If proxy also fails:** Return both errors wrapped.
+8. **Cached strategy persists** for the lifetime of the process. Once determined,
+   the failing path is never retried.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `internal/remote/dialer.go` | `dialTCP()` with strategy caching and fallback logic |
+| `internal/remote/proxy_conn.go` | `proxyConn` net.Conn wrapper and `proxyDial()` |
+
+### proxyConn
+
+`proxyConn` wraps an `ssh -W` subprocess as a `net.Conn`:
+
+- `Read()` → subprocess stdout (data from remote host)
+- `Write()` → subprocess stdin (data to remote host)
+- `Close()` → closes stdin, kills process, reaps zombie
+- `RemoteAddr()` → returns real `host:port` (required by `knownhosts` callback)
+- `SetDeadline` methods → no-ops (timeout via SSH `ConnectTimeout` and caller context)
+- Double-close is safe (guarded by mutex + `closed` flag)
+
+### Logging
+
+| Event | Level | Message |
+|-------|-------|---------|
+| Direct dial works | INFO | `remote: dialer: direct TCP works, using for all connections` |
+| Direct dial fails on macOS | WARN | `remote: dialer: direct TCP failed on macOS, trying ssh proxy fallback` |
+| Proxy started | INFO | `remote: proxy: started ssh -W` |
+| Proxy fallback succeeded | WARN | `remote: dialer: ssh proxy fallback succeeded, using for all connections` |
+| Proxy closed | INFO | `remote: proxy: closed` |
+
+### Performance note
+
+On macOS with the firewall active, the first connection incurs ~20ms overhead for
+the failed `net.Dial` probe. Subsequent connections go straight to the proxy with
+no wasted attempt. On Linux or macOS with the firewall off/allowed, direct `net.Dial`
+is used with zero overhead.
+
+Users who want to skip the probe can add the binary to the macOS firewall allowlist:
+
+```
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add /path/to/bin/log-analysis-mcp
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /path/to/bin/log-analysis-mcp
+```
+
+This is optional — the automatic fallback handles it transparently.
+
 ## External Dependencies
 
 **Import path:** `golang.org/x/crypto`
