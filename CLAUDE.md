@@ -51,6 +51,7 @@
 - Ask before adding any dependency beyond `github.com/modelcontextprotocol/go-sdk`.
 - Ask before changing the public interface of `internal/types/`.
 - Do not start implementation without a plan in `plans/`.
+- Spawned agents NEVER run git commands (add, commit, push, status, etc.). Only the main Claude commits.
 
 ## Hard Rules
 
