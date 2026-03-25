@@ -20,9 +20,9 @@ const maxCorrelatedGroups = 50
 
 // CorrelateLogsInput defines the parameters for the correlate_logs tool.
 type CorrelateLogsInput struct {
-	Paths             []string `json:"paths"                jsonschema:"required,description=Array of log file paths (2-10 files)"`
-	CorrelationField  string   `json:"correlation_field"    jsonschema:"description=Field name for correlation"`
-	TimeWindowSeconds int      `json:"time_window_seconds"  jsonschema:"description=Max time window in seconds for grouping,minimum=1,maximum=3600"`
+	Paths             []string `json:"paths"                          jsonschema:"Array of log file paths (2-10 files)"`
+	CorrelationField  string   `json:"correlation_field,omitempty"    jsonschema:"Field name for correlation"`
+	TimeWindowSeconds int      `json:"time_window_seconds,omitempty"  jsonschema:"Max time window in seconds for grouping"`
 }
 
 // FileAnalysis records how many entries were parsed from each file.

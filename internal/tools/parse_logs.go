@@ -10,10 +10,10 @@ import (
 
 // ParseLogsInput defines the parameters for the parse_logs tool.
 type ParseLogsInput struct {
-	Path       string `json:"path"        jsonschema:"required,description=Path to the log file"`
-	StartLine  int    `json:"start_line"  jsonschema:"description=Line number to start parsing from (1-based),minimum=1"`
-	NumLines   int    `json:"num_lines"   jsonschema:"description=Number of lines to parse (max 500),minimum=1,maximum=500"`
-	FormatHint string `json:"format_hint" jsonschema:"description=Log format hint,enum=syslog-rfc3164,enum=syslog-rfc5424,enum=apache-combined,enum=apache-common,enum=json,enum=auto"`
+	Path       string `json:"path"                 jsonschema:"Path to the log file"`
+	StartLine  int    `json:"start_line,omitempty"  jsonschema:"Line number to start parsing from (1-based)"`
+	NumLines   int    `json:"num_lines,omitempty"   jsonschema:"Number of lines to parse (max 500)"`
+	FormatHint string `json:"format_hint,omitempty" jsonschema:"Log format hint (syslog-rfc3164, syslog-rfc5424, apache-combined, apache-common, json, auto)"`
 }
 
 // ParsedRecord represents a single successfully parsed log entry.

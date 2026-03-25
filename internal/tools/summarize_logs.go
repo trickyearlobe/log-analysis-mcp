@@ -19,8 +19,8 @@ const summarizeTopN = 10
 
 // SummarizeLogsInput defines the parameters for the summarize_logs tool.
 type SummarizeLogsInput struct {
-	Path       string `json:"path"        jsonschema:"required,description=Path to the log file"`
-	SampleSize int    `json:"sample_size" jsonschema:"description=Number of lines to sample; 0 means analyze all lines,minimum=0"`
+	Path       string `json:"path"                 jsonschema:"Path to the log file"`
+	SampleSize int    `json:"sample_size,omitempty" jsonschema:"Number of lines to sample; 0 means analyze all lines"`
 }
 
 // TimeRangeInfo contains the earliest and latest timestamps and their duration.

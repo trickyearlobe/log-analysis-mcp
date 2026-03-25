@@ -15,11 +15,11 @@ const timelinePageSize = 1000
 
 // TimelineInput defines the parameters for the timeline tool.
 type TimelineInput struct {
-	Path       string   `json:"path"        jsonschema:"required,description=Path to the log file"`
-	After      string   `json:"after"       jsonschema:"description=ISO 8601 timestamp — include events after this time"`
-	Before     string   `json:"before"      jsonschema:"description=ISO 8601 timestamp — include events before this time"`
-	EventTypes []string `json:"event_types" jsonschema:"description=Event types to include"`
-	MaxEvents  int      `json:"max_events"  jsonschema:"description=Maximum number of events to return (max 500),minimum=1,maximum=500"`
+	Path       string   `json:"path"                  jsonschema:"Path to the log file"`
+	After      string   `json:"after,omitempty"        jsonschema:"ISO 8601 timestamp — include events after this time"`
+	Before     string   `json:"before,omitempty"       jsonschema:"ISO 8601 timestamp — include events before this time"`
+	EventTypes []string `json:"event_types,omitempty"  jsonschema:"Event types to include"`
+	MaxEvents  int      `json:"max_events,omitempty"   jsonschema:"Maximum number of events to return (max 500)"`
 }
 
 // TimeSpan describes the time range covered by returned events.

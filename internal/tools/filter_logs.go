@@ -16,13 +16,13 @@ const filterPageSize = 1000
 
 // FilterLogsInput defines the parameters for the filter_logs tool.
 type FilterLogsInput struct {
-	Path           string   `json:"path"            jsonschema:"required,description=Path to the log file"`
-	Level          []string `json:"level"           jsonschema:"description=Log levels to include (e.g. ERROR\\, WARN)"`
-	After          string   `json:"after"           jsonschema:"description=ISO 8601 timestamp — include entries after this time"`
-	Before         string   `json:"before"          jsonschema:"description=ISO 8601 timestamp — include entries before this time"`
-	Source         string   `json:"source"          jsonschema:"description=Regex pattern to match the source/component field"`
-	MessagePattern string   `json:"message_pattern" jsonschema:"description=Regex pattern to match the message content"`
-	MaxResults     int      `json:"max_results"     jsonschema:"description=Maximum entries to return (max 1000),minimum=1,maximum=1000"`
+	Path           string   `json:"path"                      jsonschema:"Path to the log file"`
+	Level          []string `json:"level,omitempty"           jsonschema:"Log levels to include (e.g. ERROR, WARN)"`
+	After          string   `json:"after,omitempty"           jsonschema:"ISO 8601 timestamp — include entries after this time"`
+	Before         string   `json:"before,omitempty"          jsonschema:"ISO 8601 timestamp — include entries before this time"`
+	Source         string   `json:"source,omitempty"          jsonschema:"Regex pattern to match the source/component field"`
+	MessagePattern string   `json:"message_pattern,omitempty" jsonschema:"Regex pattern to match the message content"`
+	MaxResults     int      `json:"max_results,omitempty"     jsonschema:"Maximum entries to return (max 1000)"`
 }
 
 // FilteredEntry represents a single log entry that matched the filter criteria.

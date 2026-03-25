@@ -9,10 +9,10 @@ import (
 
 // ReadLogsInput defines the parameters for the read_logs tool.
 type ReadLogsInput struct {
-	Path      string `json:"path"       jsonschema:"required,description=Path to the log file"`
-	StartLine int    `json:"start_line" jsonschema:"description=Line number to start reading from (1-based),minimum=1"`
-	NumLines  int    `json:"num_lines"  jsonschema:"description=Number of lines to return (max 1000),minimum=1,maximum=1000"`
-	Encoding  string `json:"encoding"   jsonschema:"description=File encoding (utf-8\\, ascii\\, latin1),enum=utf-8,enum=ascii,enum=latin1"`
+	Path      string `json:"path"                 jsonschema:"Path to the log file"`
+	StartLine int    `json:"start_line,omitempty" jsonschema:"Line number to start reading from (1-based)"`
+	NumLines  int    `json:"num_lines,omitempty"  jsonschema:"Number of lines to return (max 1000)"`
+	Encoding  string `json:"encoding,omitempty"   jsonschema:"File encoding (utf-8, ascii, latin1)"`
 }
 
 // LineRange describes the inclusive range of line numbers returned.

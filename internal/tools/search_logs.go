@@ -13,12 +13,12 @@ const searchPageSize = 1000
 
 // SearchLogsInput defines the parameters for the search_logs tool.
 type SearchLogsInput struct {
-	Path          string `json:"path"           jsonschema:"required,description=Path to the log file to search"`
-	Pattern       string `json:"pattern"        jsonschema:"required,description=Search pattern (plain text or regex)"`
-	IsRegex       bool   `json:"is_regex"       jsonschema:"description=Treat pattern as a regular expression"`
-	CaseSensitive bool   `json:"case_sensitive" jsonschema:"description=Case-sensitive search"`
-	ContextLines  int    `json:"context_lines"  jsonschema:"description=Lines of context before and after each match,minimum=0,maximum=10"`
-	MaxResults    int    `json:"max_results"    jsonschema:"description=Maximum number of matches to return (max 500),minimum=1,maximum=500"`
+	Path          string `json:"path"                    jsonschema:"Path to the log file to search"`
+	Pattern       string `json:"pattern"                 jsonschema:"Search pattern (plain text or regex)"`
+	IsRegex       bool   `json:"is_regex,omitempty"       jsonschema:"Treat pattern as a regular expression"`
+	CaseSensitive bool   `json:"case_sensitive,omitempty" jsonschema:"Case-sensitive search"`
+	ContextLines  int    `json:"context_lines,omitempty"  jsonschema:"Lines of context before and after each match (0-10)"`
+	MaxResults    int    `json:"max_results,omitempty"    jsonschema:"Maximum number of matches to return (max 500)"`
 }
 
 // SearchLogsOutput is the structured result of the search_logs tool.

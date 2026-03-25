@@ -19,9 +19,9 @@ const maxSampleMessages = 3
 
 // ExtractErrorsInput defines the parameters for the extract_errors tool.
 type ExtractErrorsInput struct {
-	Path               string `json:"path"                 jsonschema:"required,description=Path to the log file"`
-	IncludeStackTraces bool   `json:"include_stack_traces" jsonschema:"description=Capture multiline stack traces with errors"`
-	MaxClusters        int    `json:"max_clusters"         jsonschema:"description=Maximum number of error clusters to return (max 100),minimum=1,maximum=100"`
+	Path               string `json:"path"                           jsonschema:"Path to the log file"`
+	IncludeStackTraces bool   `json:"include_stack_traces,omitempty" jsonschema:"Capture multiline stack traces with errors"`
+	MaxClusters        int    `json:"max_clusters,omitempty"         jsonschema:"Maximum number of error clusters to return (max 100)"`
 }
 
 // ErrorRate contains error frequency statistics.

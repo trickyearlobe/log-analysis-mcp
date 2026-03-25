@@ -18,9 +18,9 @@ const maxEvidenceLines = 5
 
 // DetectAnomaliesInput defines the parameters for the detect_anomalies tool.
 type DetectAnomaliesInput struct {
-	Path          string `json:"path"           jsonschema:"required,description=Path to the log file"`
-	WindowMinutes int    `json:"window_minutes" jsonschema:"description=Time window in minutes for rate analysis,minimum=1,maximum=60"`
-	Sensitivity   string `json:"sensitivity"    jsonschema:"description=Detection sensitivity level,enum=low,enum=medium,enum=high"`
+	Path          string `json:"path"                    jsonschema:"Path to the log file"`
+	WindowMinutes int    `json:"window_minutes,omitempty" jsonschema:"Time window in minutes for rate analysis"`
+	Sensitivity   string `json:"sensitivity,omitempty"    jsonschema:"Detection sensitivity level (low, medium, high)"`
 }
 
 // AnalysisMetadata contains summary statistics about the anomaly detection run.

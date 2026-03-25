@@ -15,8 +15,8 @@ type LogLine struct {
 
 // TailLogsInput is the input schema for the tail_logs tool.
 type TailLogsInput struct {
-	Path     string `json:"path"      jsonschema:"required,description=Path to the log file"`
-	NumLines int    `json:"num_lines" jsonschema:"description=Number of lines to read from the end of the file (max 1000),minimum=1,maximum=1000"`
+	Path     string `json:"path"                jsonschema:"Path to the log file"`
+	NumLines int    `json:"num_lines,omitempty" jsonschema:"Number of lines to read from the end of the file (max 1000)"`
 }
 
 // TailLogsOutput is the result of a tail_logs invocation.

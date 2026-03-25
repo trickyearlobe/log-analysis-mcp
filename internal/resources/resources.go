@@ -19,7 +19,7 @@ const maxPreviewLines = 100
 // Register adds all resource templates to the MCP server.
 func Register(srv *mcp.Server) {
 	srv.AddResourceTemplate(&mcp.ResourceTemplate{
-		URITemplate: "log:///{path}",
+		URITemplate: "log:///{+path}",
 		Name:        "log-file",
 		Description: "Log file metadata and preview",
 		MIMEType:    "text/plain",
