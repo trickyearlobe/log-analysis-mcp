@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/trickyearlobe/log-analysis-mcp/internal/server"
 )
 
 var version = "0.1.0"
@@ -19,9 +21,10 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	// TODO: instantiate server and run on stdio transport
-	_ = ctx
-
-	fmt.Fprintf(os.Stderr, "log-analysis-mcp %s: server not yet implemented\n", version)
-	os.Exit(0)
+	srv := server.New(version)
+	slog.Info("starting log-analysis-mcp", "version", version)
+	if err := srv.Run(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "log-analysis-mcp: %v\n", err)
+		os.Exit(1)
+	}
 }
