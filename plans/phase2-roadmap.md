@@ -5,6 +5,19 @@
 Extend the log analysis MCP server with five features: compressed file support,
 log diff, report generation, live log tailing, and remote log sources (SSH + Windows).
 
+## Status
+
+| Phase | Feature              | Status      |
+|-------|----------------------|-------------|
+| 1     | Compressed files     | Not started |
+| 2     | Log diff             | ✅ Complete  |
+| 3     | Report prompt        | ✅ Complete  |
+| 4     | Live tailing         | Blocked     |
+| 5     | Remote sources (SSH) | ✅ Complete  |
+
+Phase 5 includes: SSH infrastructure, 3 remote tools, macOS firewall proxy
+fallback, `investigate_remote` prompt, and SSH-guarded integration tests.
+
 ## Policy: External Dependencies
 
 CLAUDE.md keeps the strict "No external deps beyond the MCP SDK. Stdlib only." rule.
@@ -58,52 +71,17 @@ scoped to the feature that requires them.
 
 ---
 
-## Phase 2: Log Diff Tool
+## Phase 2: Log Diff Tool ✅
 
-**Deps:** None
-
-**Goal:** New `diff_logs` tool that compares two log files or two time periods,
-highlighting new error types, rate changes, missing/new sources, and throughput shifts.
-
-**Spec:** `specs/tools/diff_logs.md` (to be written)
-
-**Design decisions:**
-- Two modes: file-vs-file, and time-range-vs-time-range within one file.
-- Reuses existing parsers and error clustering (extract_errors normalisation).
-- Single-pass streaming per file/period, accumulates summary stats, then diffs.
-- Output: structured JSON with `new_errors`, `resolved_errors`, `rate_changes`,
-  `source_changes`, `throughput_comparison`.
-
-**Steps:**
-1. Write `specs/tools/diff_logs.md`.
-2. Write `internal/tools/diff_logs.go` + `diff_logs_test.go` (TDD).
-3. Register in `internal/server/server.go`.
-4. Add integration test.
-5. `go test -race ./...` && `go vet ./...`.
+Complete. `diff_logs` tool with file-vs-file and time-range modes.
+Spec: `specs/tools/diff_logs.md`. 13 unit tests + 3 integration tests.
 
 ---
 
-## Phase 3: Report Generation Prompt
+## Phase 3: Report Generation Prompt ✅
 
-**Deps:** None
-
-**Goal:** New `generate_report` prompt that guides the AI through a multi-tool
-investigation and produces a structured Markdown incident report.
-
-**Spec:** `specs/resources_and_prompts.md` (append new prompt section)
-
-**Design decisions:**
-- Prompt only — no new tool. The AI calls existing tools following the prompt.
-- Prompt text references: `summarize_logs`, `extract_errors`, `detect_anomalies`,
-  `diff_logs` (if available), `timeline`, `search_logs`.
-- Arguments: `log_path` (required), `comparison_path` (optional), `incident_id` (optional).
-
-**Steps:**
-1. Update `specs/resources_and_prompts.md` with `generate_report` prompt spec.
-2. Add handler in `internal/prompts/prompts.go`.
-3. Register in `internal/server/server.go`.
-4. Add integration test.
-5. `go test -race ./...` && `go vet ./...`.
+Complete. `generate_report` prompt with 8-step investigation workflow.
+Conditional diff step and incident ID header. 3 integration tests.
 
 ---
 
@@ -151,59 +129,34 @@ and Streamable HTTP transport (`mcp.NewStreamableHTTPHandler`,
 
 ---
 
-## Phase 5: Remote Log Sources (SSH)
+## Phase 5: Remote Log Sources (SSH) ✅
 
-**Deps:** `golang.org/x/crypto/ssh` — declared as exception in `specs/remote.md`
+Complete. All sub-phases delivered:
 
-**Goal:** All existing tools can read logs from remote hosts over SSH.
+- **5a** SSH infrastructure (`internal/remote/`): auth chain, connection pooling,
+  host key verification, command exec, file download, journal export. 22 unit tests.
+- **5b** `run_remote_command` tool. 5 unit tests.
+- **5c** `discover_remote_logs` tool. Rotated file grouping, journal detection. Unit tests.
+- **5d** `gather_remote_logs` tool. Size-guarded download, temp file management. Unit tests.
+- **5e** `investigate_remote` prompt. 10-step multi-system workflow. 4 prompt tests +
+  5 SSH-guarded integration tests (discover → gather → summarize → diff).
+- **macOS firewall proxy fallback**: `dialTCP` tries `net.Dial` first, falls back to
+  `/usr/bin/ssh -W` on darwin when blocked. Works on MDM-managed Macs without sudo.
+  17 tests (proxy_conn + dialer).
 
-**Spec:** `specs/remote.md` (to be written)
-
-**Research needed:**
-- [ ] Confirm `golang.org/x/crypto/ssh` API for session exec + stdout streaming.
-- [ ] Evaluate SSH agent forwarding vs key file vs password auth.
-- [ ] Determine if `golang.org/x/crypto` pulls in transitive deps that conflict
-      with our module.
-- [ ] Investigate WinRM libraries for Windows remote. Modern Windows (2019+/Win10+)
-      ships OpenSSH server, so SSH may cover Windows too. Decide whether WinRM is
-      needed or if SSH-on-Windows is sufficient.
-
-**Design decisions (tentative, pending research):**
-- Path syntax: `ssh://user@host:port/path/to/log` parsed from the `path` field.
-- Spec must include `## External Dependencies` section vetting `golang.org/x/crypto/ssh`.
-- New `internal/remote/` package with a `Reader` interface matching `io.ReadCloser`.
-- `fileutil.OpenReader` checks for `ssh://` prefix and delegates to remote reader.
-- Auth: SSH agent > key file (`~/.ssh/id_*`) > password (prompted via MCP elicitation).
-- Connection pooling: one SSH connection per host, reused across tool calls within
-  a session. Connections closed when the MCP session ends.
-- Windows remoting: prefer SSH. WinRM only if there's a strong user need for
-  legacy Windows hosts without OpenSSH.
-
-**Steps:**
-1. Research spike: prototype SSH exec + streaming stdout.
-2. Write `specs/remote.md`.
-3. `go get golang.org/x/crypto/ssh` and vet the dependency.
-4. Write `internal/remote/ssh.go` + `ssh_test.go` (TDD, mock SSH server).
-5. Integrate with `fileutil.OpenReader`.
-6. Test with real remote host (manual).
-7. `go test -race ./...` && `go vet ./...`.
+Dep: `golang.org/x/crypto` v0.49.0 (SSH client). Exception in `specs/remote.md`.
 
 ---
 
-## Execution Order
+## Remaining Work
 
-| Phase | Feature              | Blocked by | Est. complexity |
-|-------|----------------------|------------|-----------------|
-| 1     | Compressed files     | —          | Medium          |
-| 2     | Log diff             | —          | Medium          |
-| 3     | Report prompt        | Phase 2*   | Small           |
-| 4     | Live tailing         | Research   | Large           |
-| 5     | Remote sources (SSH) | Research   | Large           |
+| Phase | Feature          | Blocked by | Est. complexity |
+|-------|------------------|------------|-----------------|
+| 1     | Compressed files | —          | Medium          |
+| 4     | Live tailing     | Research   | Large           |
 
-*Phase 3 benefits from Phase 2 (diff_logs referenced in report prompt) but can
-proceed without it by making that section conditional.
-
-Phases 1-3 can start immediately. Phases 4-5 need research spikes first.
+Phase 1 is ready to start. Phase 4 needs a research spike to confirm
+whether Claude Desktop / MCP Inspector surface progress notifications.
 
 ## Open Questions
 
