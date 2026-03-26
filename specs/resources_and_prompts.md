@@ -268,3 +268,95 @@ The full prompt text (with all optional sections present):
 1. An SRE says "generate a report for the outage in /var/log/app.log, incident INC-2025-042" — the AI follows the full workflow with the incident ID in the header.
 2. A developer says "compare today's logs against yesterday's and write a report" providing both paths — the AI includes the diff_logs comparison section.
 3. A team lead says "analyze /var/log/nginx/error.log and write up what happened" — the AI skips the comparison step and omits the incident ID.
+
+---
+
+### `investigate_remote`
+
+**Purpose:** Guide the AI through a multi-system remote log investigation workflow, from discovery through analysis to a structured report.
+
+**Arguments:**
+
+| Argument      | Type     | Required | Description                                              |
+| ------------- | -------- | -------- | -------------------------------------------------------- |
+| `hosts`       | `string` | Yes      | Comma-separated list of SSH targets in [user@]host[:port] format |
+| `log_paths`   | `string` | No       | Comma-separated specific remote log paths to gather (skips discovery) |
+| `incident_id` | `string` | No       | Incident or ticket ID to include in the report header     |
+
+**Registration:**
+
+```go
+srv.AddPrompt(&mcp.Prompt{
+    Name:        "investigate_remote",
+    Description: "Multi-system remote log investigation via SSH",
+    Arguments: []*mcp.PromptArgument{
+        {Name: "hosts", Description: "Comma-separated SSH targets in [user@]host[:port] format", Required: true},
+        {Name: "log_paths", Description: "Specific remote log paths to gather (comma-separated, skips discovery)", Required: false},
+        {Name: "incident_id", Description: "Incident or ticket ID for the report header", Required: false},
+    },
+}, handleInvestigateRemote)
+```
+
+**Prompt Text:**
+
+The prompt returns a single `user` role message. The text is constructed from `hosts` and the optional arguments.
+
+When `incident_id` is provided:
+> Include the incident ID "{incident_id}" in the report header.
+
+When `log_paths` is provided, the discovery step is replaced:
+> **Discovery**: The following specific log paths have been provided: {log_paths}. Skip discovery and proceed to gathering these files.
+
+When `log_paths` is omitted:
+> **Discovery**: Use discover_remote_logs to find available log files and journal units on all target hosts. Review the results and select the most relevant logs for the investigation.
+
+When there is only one host (no comma in `hosts`), the cross-host steps are omitted:
+> **Cross-Host Correlation**: Only one host is being investigated — skip cross-host correlation.
+> **Cross-Host Comparison**: Only one host is being investigated — skip cross-host comparison.
+
+The full prompt text (with all optional sections present, multiple hosts, no log_paths):
+
+> Investigate a potential incident across the following remote hosts: {hosts}.
+> Include the incident ID "{incident_id}" in the report header.
+>
+> Follow this structured investigation process:
+>
+> 1. **Discovery**: Use discover_remote_logs to find available log files and journal units on all target hosts. Review the results and select the most relevant logs for the investigation.
+>
+> 2. **Gathering**: Use gather_remote_logs to download the selected log files and journal exports to local temporary files. Note the local paths returned — all subsequent tools operate on these local copies.
+>
+> 3. **System Health**: Use run_remote_command to check each host's current state:
+>    - `uptime` — how long has the system been running? Recent reboots?
+>    - `df -h` — disk space issues?
+>    - `free -h` — memory pressure?
+>    - `dmesg | tail -20` — kernel-level issues?
+>
+> 4. **Log Summary**: Use summarize_logs on each gathered log file to establish baseline metrics: line counts, time ranges, error rates, and throughput.
+>
+> 5. **Error Analysis**: Use extract_errors on each gathered log file to identify and cluster error types. Compare error profiles across hosts.
+>
+> 6. **Anomaly Detection**: Use detect_anomalies on each gathered log file to find error spikes, gaps, rate changes, and new error types.
+>
+> 7. **Cross-Host Correlation**: Use correlate_logs across gathered files from different hosts to find events that span multiple systems (shared request IDs, trace IDs, or timestamps).
+>
+> 8. **Cross-Host Comparison**: Use diff_logs to compare log files between hosts to identify divergent behaviour — errors on one host but not another, different error rates, etc.
+>
+> 9. **Deep Dive**: For the most significant issues found, use search_logs with context_lines=5 to examine surrounding context.
+>
+> 10. **Report**: Compile all findings into a structured Markdown report:
+>     - **Incident Report: {incident_id}** (header, or generic if no ID provided)
+>     - **Executive Summary** (2-3 sentences: what, when, impact)
+>     - **Systems Investigated** (table of hosts with uptime, OS, key metrics)
+>     - **Timeline of Events** (chronological, cross-host)
+>     - **Error Analysis by Host** (clusters, rates, patterns per host)
+>     - **Anomalies Detected** (per host)
+>     - **Cross-Host Correlation** (events spanning systems)
+>     - **Root Cause Analysis** (assessment based on evidence)
+>     - **Impact Assessment** (affected systems, duration, severity)
+>     - **Recommendations** (prioritized remediation steps)
+
+**Example Usage Scenarios:**
+
+1. An SRE says "investigate the outage on web1 and web2, incident INC-2025-100" — the AI discovers logs, gathers them, analyzes across both hosts.
+2. A developer says "check the logs on db-server, specifically /var/log/postgresql/postgresql-15-main.log" — the AI skips discovery and goes straight to gathering.
+3. A team lead says "what's happening on all three app servers?" — the AI discovers, selects, and compares across hosts.

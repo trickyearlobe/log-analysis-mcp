@@ -4,6 +4,7 @@ package prompts
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -36,6 +37,16 @@ func Register(srv *mcp.Server) {
 			{Name: "incident_id", Description: "Incident or ticket ID to include in the report header", Required: false},
 		},
 	}, handleGenerateReport)
+
+	srv.AddPrompt(&mcp.Prompt{
+		Name:        "investigate_remote",
+		Description: "Multi-system remote log investigation via SSH",
+		Arguments: []*mcp.PromptArgument{
+			{Name: "hosts", Description: "Comma-separated SSH targets in [user@]host[:port] format", Required: true},
+			{Name: "log_paths", Description: "Specific remote log paths to gather (comma-separated, skips discovery)", Required: false},
+			{Name: "incident_id", Description: "Incident or ticket ID for the report header", Required: false},
+		},
+	}, handleInvestigateRemote)
 }
 
 // handleInvestigateError returns a structured error investigation prompt.
@@ -211,6 +222,106 @@ Follow this structured investigation process, using the tools listed for each st
 
 Be specific with numbers, timestamps, and evidence from the logs. Every claim in the report should be backed by data from one of the tools.`,
 		logPath, incidentSentence, comparisonStep, reportHeader, comparisonSection)
+
+	return &mcp.GetPromptResult{
+		Messages: []*mcp.PromptMessage{
+			{Role: "user", Content: &mcp.TextContent{Text: text}},
+		},
+	}, nil
+}
+
+// handleInvestigateRemote returns a multi-system remote investigation prompt.
+func handleInvestigateRemote(_ context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+	hosts := req.Params.Arguments["hosts"]
+	if hosts == "" {
+		return nil, fmt.Errorf("missing required argument: hosts")
+	}
+
+	logPaths := req.Params.Arguments["log_paths"]
+	incidentID := req.Params.Arguments["incident_id"]
+
+	var incidentSentence string
+	if incidentID != "" {
+		incidentSentence = fmt.Sprintf("\nInclude the incident ID %q in the report header.", incidentID)
+	}
+
+	var discoveryStep string
+	if logPaths != "" {
+		discoveryStep = fmt.Sprintf(`1. **Discovery**: The following specific log paths have been provided: %s. Skip discovery and proceed to gathering these files.`, logPaths)
+	} else {
+		discoveryStep = "1. **Discovery**: Use discover_remote_logs to find available log files and journal units on all target hosts. Review the results and select the most relevant logs for the investigation."
+	}
+
+	multiHost := strings.Contains(hosts, ",")
+
+	var correlationStep string
+	if multiHost {
+		correlationStep = "7. **Cross-Host Correlation**: Use correlate_logs across gathered files from different hosts to find events that span multiple systems (shared request IDs, trace IDs, or timestamps)."
+	} else {
+		correlationStep = "7. **Cross-Host Correlation**: Only one host is being investigated — skip cross-host correlation."
+	}
+
+	var comparisonStep string
+	if multiHost {
+		comparisonStep = "8. **Cross-Host Comparison**: Use diff_logs to compare log files between hosts to identify divergent behaviour — errors on one host but not another, different error rates, etc."
+	} else {
+		comparisonStep = "8. **Cross-Host Comparison**: Only one host is being investigated — skip cross-host comparison."
+	}
+
+	var reportHeader string
+	if incidentID != "" {
+		reportHeader = fmt.Sprintf("**Incident Report: %s** (header)", incidentID)
+	} else {
+		reportHeader = "**Incident Report** (header, generic since no ID provided)"
+	}
+
+	var correlationSection string
+	if multiHost {
+		correlationSection = "\n    - **Cross-Host Correlation** (events spanning systems)"
+	}
+
+	text := fmt.Sprintf(`Investigate a potential incident across the following remote hosts: %s.%s
+
+Follow this structured investigation process:
+
+%s
+
+2. **Gathering**: Use gather_remote_logs to download the selected log files and journal exports to local temporary files. Note the local paths returned — all subsequent tools operate on these local copies.
+
+3. **System Health**: Use run_remote_command to check each host's current state:
+   - %s — how long has the system been running? Recent reboots?
+   - %s — disk space issues?
+   - %s — memory pressure?
+   - %s — kernel-level issues?
+
+4. **Log Summary**: Use summarize_logs on each gathered log file to establish baseline metrics: line counts, time ranges, error rates, and throughput.
+
+5. **Error Analysis**: Use extract_errors on each gathered log file to identify and cluster error types. Compare error profiles across hosts.
+
+6. **Anomaly Detection**: Use detect_anomalies on each gathered log file to find error spikes, gaps, rate changes, and new error types.
+
+%s
+
+%s
+
+9. **Deep Dive**: For the most significant issues found, use search_logs with context_lines=5 to examine surrounding context.
+
+10. **Report**: Compile all findings into a structured Markdown report:
+    - %s
+    - **Executive Summary** (2-3 sentences: what, when, impact)
+    - **Systems Investigated** (table of hosts with uptime, OS, key metrics)
+    - **Timeline of Events** (chronological, cross-host)
+    - **Error Analysis by Host** (clusters, rates, patterns per host)
+    - **Anomalies Detected** (per host)%s
+    - **Root Cause Analysis** (assessment based on evidence)
+    - **Impact Assessment** (affected systems, duration, severity)
+    - **Recommendations** (prioritized remediation steps)`,
+		hosts, incidentSentence,
+		discoveryStep,
+		"`uptime`", "`df -h`", "`free -h`", "`dmesg | tail -20`",
+		correlationStep,
+		comparisonStep,
+		reportHeader, correlationSection)
 
 	return &mcp.GetPromptResult{
 		Messages: []*mcp.PromptMessage{
