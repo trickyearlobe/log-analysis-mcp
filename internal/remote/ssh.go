@@ -20,34 +20,45 @@ import (
 )
 
 // BuildAuthMethods returns SSH auth methods in priority order (agent, then key files).
-func BuildAuthMethods() ([]ssh.AuthMethod, error) {
+// When hostCfg specifies an IdentityAgent, that socket is used instead of SSH_AUTH_SOCK.
+// When hostCfg specifies an IdentityFile, that file is tried instead of the default key paths.
+func BuildAuthMethods(hostCfg SSHHostConfig) ([]ssh.AuthMethod, error) {
 	var methods []ssh.AuthMethod
 
-	// Try SSH agent
-	sock := os.Getenv("SSH_AUTH_SOCK")
+	// Determine which agent socket to use: SSH config IdentityAgent > SSH_AUTH_SOCK
+	sock := hostCfg.IdentityAgent
+	if sock == "" {
+		sock = os.Getenv("SSH_AUTH_SOCK")
+	}
+
 	if sock != "" {
 		conn, err := net.Dial("unix", sock)
 		if err != nil {
-			slog.Warn("remote: auth: SSH_AUTH_SOCK set but agent dial failed", "error", err)
+			slog.Warn("remote: auth: agent dial failed", "socket", sock, "error", err)
 		} else {
 			agentClient := agent.NewClient(conn)
 			methods = append(methods, ssh.PublicKeysCallback(agentClient.Signers))
-			slog.Info("remote: auth: ssh-agent available")
+			slog.Info("remote: auth: ssh-agent available", "socket", sock)
 		}
 	} else {
-		slog.Info("remote: auth: SSH_AUTH_SOCK not set, skipping agent")
+		slog.Info("remote: auth: no agent socket available, skipping agent")
 	}
 
-	// Try key files
+	// Try key files: SSH config IdentityFile > default key paths
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("remote: auth: cannot determine home directory: %w", err)
 	}
 
-	keyFiles := []string{
-		filepath.Join(home, ".ssh", "id_ed25519"),
-		filepath.Join(home, ".ssh", "id_ecdsa"),
-		filepath.Join(home, ".ssh", "id_rsa"),
+	var keyFiles []string
+	if hostCfg.IdentityFile != "" {
+		keyFiles = []string{hostCfg.IdentityFile}
+	} else {
+		keyFiles = []string{
+			filepath.Join(home, ".ssh", "id_ed25519"),
+			filepath.Join(home, ".ssh", "id_ecdsa"),
+			filepath.Join(home, ".ssh", "id_rsa"),
+		}
 	}
 
 	for _, keyPath := range keyFiles {
@@ -137,7 +148,7 @@ func (p *ClientPool) Get(target Target) (*ssh.Client, error) {
 		delete(p.clients, key)
 	}
 
-	authMethods, err := BuildAuthMethods()
+	authMethods, err := BuildAuthMethods(target.SSHConfig)
 	if err != nil {
 		return nil, fmt.Errorf("remote: pool: dial %s: %w", key, err)
 	}
