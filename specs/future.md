@@ -86,3 +86,25 @@ A `diff_logs` tool that compares two log files or two time periods within the sa
 ### Report Generation
 
 A `generate_report` prompt that creates a comprehensive Markdown report combining outputs from multiple tools, suitable for sharing with a team or attaching to an incident ticket.
+
+## System SSH with ControlMaster
+
+The current remote SSH infrastructure uses a two-tier approach:
+1. `/usr/bin/ssh -W` for TCP transport (respects `~/.ssh/config`, passes macOS firewall)
+2. Go `x/crypto/ssh` for protocol layer (connection pooling, multiplexed sessions)
+
+This works but requires the Go layer to reimplement SSH config resolution for authentication (IdentityAgent, IdentityFile, User, Port). Every new SSH config directive users rely on requires more code in the Go layer.
+
+**Alternative:** Replace both tiers with pure system SSH using `ControlMaster`/`ControlPath`:
+- System SSH establishes a multiplexed master connection on first use
+- Subsequent `ssh` invocations reuse it via the control socket — no re-auth, no new TCP
+- All SSH config directives work automatically (ProxyJump, Match, CanonicalizeHostname, etc.)
+- No `x/crypto/ssh` dependency needed for remote operations
+
+**Trade-offs:**
+- Subprocess per command (but with ControlMaster, only the first connection has real overhead)
+- Less programmatic control over SSH channels
+- Requires cleanup of control sockets on shutdown
+- Would need to parse command output for exit codes and handle streaming differently
+
+**When to consider:** If more SSH config directives need support, or if the Go SSH auth layer causes further compatibility issues, this approach eliminates the impedance mismatch entirely.

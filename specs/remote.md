@@ -5,24 +5,38 @@ and `gather_remote_logs` tools.
 
 ## Prerequisites
 
-### SSH Config Limitations
+### SSH Config Support
 
-The Go SSH client (`x/crypto/ssh`) does **not** read `~/.ssh/config`. Features
-that users may rely on in OpenSSH are not available:
+The Go SSH client now reads `~/.ssh/config` via the `kevinburke/ssh_config`
+library. This resolves the most common friction point: users who configure
+per-host settings in their SSH config (especially `IdentityAgent` for 1Password
+or other custom SSH agents) no longer need workarounds.
 
-- `User` directives — specify user explicitly: `root@host` not just `host`
-- `CanonicalizeHostname` / `CanonicalDomains` — use the FQDN directly
-- `IdentityAgent` — set `SSH_AUTH_SOCK` in the environment instead
-- `ProxyJump` / `ProxyCommand` — not supported
-- `Host` aliases — use the real hostname or IP
+**Supported directives:**
 
-Users must pass fully-qualified `[user@]host[:port]` targets to all remote tools.
+- `User` — default username for a host
+- `Port` — default port for a host
+- `IdentityAgent` — path to a custom SSH agent socket (e.g. 1Password)
+- `IdentityFile` — path to a specific private key file
 
-**Exception:** When the SSH proxy fallback is active (see Connection Strategy below),
-`~/.ssh/config` IS respected for the proxy connection because it shells out to the
-real `/usr/bin/ssh` binary. `User`, `IdentityAgent`, `CanonicalizeHostname`, and
-`ProxyJump` all work through the proxy path. However, the `[user@]host[:port]`
-target format is still required — tool inputs are not resolved through ssh config.
+**Precedence:** explicit `[user@]host[:port]` input > SSH config > OS defaults.
+If the user specifies `root@host:2222`, neither `User` nor `Port` from SSH config
+will override it. SSH config values fill in only what the user omitted.
+
+**Still unsupported:**
+
+- `ProxyJump` / `ProxyCommand` — not supported by the Go SSH client directly.
+  However, the proxy fallback via `/usr/bin/ssh -W` handles these at the transport
+  layer on macOS (see Connection Strategy below), since it shells out to the real
+  OpenSSH binary which reads the full config.
+- `CanonicalizeHostname` / `CanonicalDomains` — use the FQDN directly, or rely
+  on the proxy fallback path on macOS where the real OpenSSH binary resolves these.
+
+**Key fix — `IdentityAgent`:** This directive is the primary motivation for SSH
+config support. Users who configure 1Password or other custom SSH agents via
+`IdentityAgent` in their `~/.ssh/config` can now connect without manually setting
+`SSH_AUTH_SOCK` in the environment. The agent socket path is read from config and
+used directly when building auth methods.
 
 ### Host Key Verification
 
@@ -99,6 +113,8 @@ This is optional — the automatic fallback handles it transparently.
 
 ## External Dependencies
 
+### `golang.org/x/crypto`
+
 **Import path:** `golang.org/x/crypto`
 
 **Sub-packages used:**
@@ -117,7 +133,25 @@ sub-repository maintained by the Go team. There is no lighter alternative.
 - Vulnerability history: actively patched, covered by Go security policy
 - Run `govulncheck ./...` after adding the dependency to confirm no known issues
 
-This exception is scoped to the remote log tools. It does not change the
+### `kevinburke/ssh_config`
+
+**Import path:** `github.com/kevinburke/ssh_config`
+
+**Justification:** Go stdlib has no SSH config parser. This library is MIT-licensed,
+has zero transitive dependencies (stdlib only), 33,000+ dependents, 526 direct
+importers, sponsored by Tailscale and Indeed, and actively maintained (v1.6.0).
+Hand-rolling an OpenSSH config parser that correctly handles `Host` pattern matching,
+`Match` directives, `Include`, and wildcards would be error-prone and unnecessary.
+
+**Vetting notes:**
+- Maintainer: Kevin Burke (sponsored by Tailscale, Indeed)
+- License: MIT
+- Importers: 526 direct, 33,000+ total dependents
+- Transitive deps: zero (stdlib only)
+- Actively maintained: v1.6.0, regular releases
+- Run `govulncheck ./...` after adding the dependency to confirm no known issues
+
+Both exceptions are scoped to the remote log tools. They do not change the
 general "stdlib only" rule in CLAUDE.md.
 
 ---
@@ -129,23 +163,47 @@ general "stdlib only" rule in CLAUDE.md.
 Hosts are specified as strings in the format `[user@]host[:port]`.
 
 ```go
+// SSHHostConfig holds per-host settings resolved from ~/.ssh/config.
+type SSHHostConfig struct {
+    User          string
+    Port          int
+    IdentityAgent string
+    IdentityFile  string
+}
+
+// ResolveSSHConfig looks up host in ~/.ssh/config and returns resolved settings.
+// Returns zero-value fields for any directive not found in the config.
+func ResolveSSHConfig(host string) SSHHostConfig
+
 // Target represents a parsed SSH target.
 type Target struct {
-    User string
-    Host string
-    Port int
+    User      string
+    Host      string
+    Port      int
+    SSHConfig SSHHostConfig
 }
 ```
 
 **Parsing rules:**
-- `user@host:port` → all three fields set
-- `user@host` → port defaults to 22
-- `host:port` → user defaults to current OS user (`os.Getenv("USER")` or `user.Current()`)
-- `host` → user defaults to OS user, port defaults to 22
+- `user@host:port` → all three fields set explicitly
+- `user@host` → port defaults to SSH config, then 22
+- `host:port` → user defaults to SSH config, then current OS user (`os.Getenv("USER")` or `user.Current()`)
+- `host` → user defaults to SSH config then OS user, port defaults to SSH config then 22
 - If user is empty after all fallbacks, return error
+
+`ParseTarget` now calls `ResolveSSHConfig(host)` after parsing the input string.
+The resolved `SSHHostConfig` is stored in the `Target.SSHConfig` field and used
+downstream by `BuildAuthMethods` and connection logic.
+
+**Precedence:** explicit `[user@]host[:port]` input > SSH config > OS defaults.
+If the user provides `root@host`, the `User` from SSH config is ignored. If the
+user provides just `host`, the `User` from SSH config is used (falling back to
+the OS user if not configured).
 
 ```go
 // ParseTarget parses an SSH target string into its components.
+// After parsing, it resolves SSH config for the host and applies
+// config defaults for any fields not explicitly provided.
 func ParseTarget(s string) (Target, error)
 ```
 
@@ -157,13 +215,20 @@ func ParseTarget(s string) (Target, error)
 ### Authentication
 
 Auth methods are tried in order. The first successful method wins.
+`BuildAuthMethods` accepts an `SSHHostConfig` parameter to support per-host
+agent and key file overrides from `~/.ssh/config`.
 
 **Auth chain:**
 
-1. **SSH agent** — connect to `SSH_AUTH_SOCK` via `agent.NewClient(net.Dial("unix", sock))`.
-   Skip silently if `SSH_AUTH_SOCK` is not set or the socket is unreachable.
+1. **SSH agent** — if `hostCfg.IdentityAgent` is set, connect to that socket
+   instead of `SSH_AUTH_SOCK`. Otherwise, connect to `SSH_AUTH_SOCK` via
+   `agent.NewClient(net.Dial("unix", sock))`. This is the key fix for users
+   who configure 1Password or other custom SSH agents via `IdentityAgent` in
+   their `~/.ssh/config` — they no longer need to set `SSH_AUTH_SOCK` manually.
+   Skip silently if no agent socket is available or the socket is unreachable.
 
-2. **Key files** — try each in order, skip files that don't exist:
+2. **Key files** — if `hostCfg.IdentityFile` is set, try that file instead of
+   the default key paths. Otherwise, try each in order, skip files that don't exist:
    - `~/.ssh/id_ed25519`
    - `~/.ssh/id_ecdsa`
    - `~/.ssh/id_rsa`
@@ -177,7 +242,8 @@ Auth methods are tried in order. The first successful method wins.
 ```go
 // BuildAuthMethods returns SSH auth methods in priority order.
 // It logs (to slog) which methods are available and which are skipped.
-func BuildAuthMethods() ([]ssh.AuthMethod, error)
+// hostCfg provides per-host overrides from ~/.ssh/config (IdentityAgent, IdentityFile).
+func BuildAuthMethods(hostCfg SSHHostConfig) ([]ssh.AuthMethod, error)
 ```
 
 **No password auth.** Passwords cannot be prompted for over MCP stdio.
@@ -393,6 +459,8 @@ these tests are skipped with `t.Skip("set SSH_TEST_HOST to enable")`.
 | `Exec` | Mock SSH server that echoes, sleeps (timeout), or exits non-zero |
 | `DownloadFile` | Mock SSH server that serves file content via cat |
 | `ExportJournal` | Mock SSH server that returns fake journal output |
+| `ResolveSSHConfig` | Unit tests with temp config files, host pattern matching |
+| `expandTilde` | Pure unit tests |
 | `ShellEscape` | Pure unit tests |
 
 ---
