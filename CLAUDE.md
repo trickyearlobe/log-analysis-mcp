@@ -80,6 +80,7 @@
 - Linear history only. Rebase, never merge.
 - Do not commit generated files, binaries, or `bin/`.
 - Do not commit secrets, credentials, or API keys. Use environment variables.
+- NEVER include personal hostnames, IPs, usernames, or internal domain names in code, specs, docs, plans, or commit messages. Use generic examples (`example.com`, `10.0.0.1`, `user@host`).
 - Run `go test -race ./...` and `go vet ./...` before every commit.
 
 ## Security
