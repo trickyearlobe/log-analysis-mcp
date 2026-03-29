@@ -27,7 +27,7 @@ func sshTestHost(t *testing.T) string {
 	return host
 }
 
-// remoteRunCommandResult mirrors the JSON output of run_remote_command for unmarshaling.
+// remoteRunCommandResult mirrors the JSON output of log_run_remote_command for unmarshaling.
 type remoteRunCommandResult struct {
 	Results []struct {
 		Host     string `json:"host"`
@@ -38,7 +38,7 @@ type remoteRunCommandResult struct {
 	} `json:"results"`
 }
 
-// remoteDiscoverResult mirrors the JSON output of discover_remote_logs.
+// remoteDiscoverResult mirrors the JSON output of log_discover_remote.
 type remoteDiscoverResult struct {
 	Results []struct {
 		Host  string `json:"host"`
@@ -66,7 +66,7 @@ type remoteGatherResult struct {
 	TempDir string `json:"temp_dir"`
 }
 
-// remoteSummarizeResult mirrors enough of summarize_logs output for our checks.
+// remoteSummarizeResult mirrors enough of log_summarize output for our checks.
 type remoteSummarizeResult struct {
 	LinesAnalyzed int `json:"lines_analyzed"`
 	FileInfo      struct {
@@ -79,7 +79,7 @@ func TestRemoteRunCommand(t *testing.T) {
 	host := sshTestHost(t)
 	session := setupTestServer(t)
 
-	out := callToolRemote[remoteRunCommandResult](t, session, "run_remote_command", map[string]any{
+	out := callToolRemote[remoteRunCommandResult](t, session, "log_run_remote_command", map[string]any{
 		"hosts":   []string{host},
 		"command": "echo hello",
 	})
@@ -104,7 +104,7 @@ func TestRemoteRunCommandExitCode(t *testing.T) {
 	host := sshTestHost(t)
 	session := setupTestServer(t)
 
-	out := callToolRemote[remoteRunCommandResult](t, session, "run_remote_command", map[string]any{
+	out := callToolRemote[remoteRunCommandResult](t, session, "log_run_remote_command", map[string]any{
 		"hosts":   []string{host},
 		"command": "exit 42",
 	})
@@ -126,7 +126,7 @@ func TestRemoteDiscoverLogs(t *testing.T) {
 	host := sshTestHost(t)
 	session := setupTestServer(t)
 
-	out := callToolRemote[remoteDiscoverResult](t, session, "discover_remote_logs", map[string]any{
+	out := callToolRemote[remoteDiscoverResult](t, session, "log_discover_remote", map[string]any{
 		"hosts": []string{host},
 	})
 
@@ -152,7 +152,7 @@ func TestRemoteGatherAndSummarize(t *testing.T) {
 	session := setupTestServer(t)
 
 	// First, find a log file that exists and has content.
-	cmdOut := callToolRemote[remoteRunCommandResult](t, session, "run_remote_command", map[string]any{
+	cmdOut := callToolRemote[remoteRunCommandResult](t, session, "log_run_remote_command", map[string]any{
 		"hosts":   []string{host},
 		"command": "find /var/log -maxdepth 1 -name '*.log' -size +0c -type f 2>/dev/null | head -1",
 	})
@@ -169,7 +169,7 @@ func TestRemoteGatherAndSummarize(t *testing.T) {
 	t.Logf("using remote log file: %s", logPath)
 
 	// Gather it locally.
-	gatherOut := callToolRemote[remoteGatherResult](t, session, "gather_remote_logs", map[string]any{
+	gatherOut := callToolRemote[remoteGatherResult](t, session, "log_gather_remote", map[string]any{
 		"hosts":          []string{host},
 		"paths":          []string{logPath},
 		"max_file_bytes": 1048576, // 1MB cap
@@ -190,12 +190,12 @@ func TestRemoteGatherAndSummarize(t *testing.T) {
 	t.Logf("gathered %d bytes to %s", gf.SizeBytes, gf.LocalPath)
 
 	// Now summarize the local copy.
-	sumOut := callToolRemote[remoteSummarizeResult](t, session, "summarize_logs", map[string]any{
+	sumOut := callToolRemote[remoteSummarizeResult](t, session, "log_summarize", map[string]any{
 		"path": gf.LocalPath,
 	})
 
 	if sumOut.LinesAnalyzed == 0 {
-		t.Error("summarize_logs returned 0 lines_analyzed")
+		t.Error("log_summarize returned 0 lines_analyzed")
 	}
 
 	t.Logf("summarized: %d lines, format=%s", sumOut.LinesAnalyzed, sumOut.DetectedFormat)
@@ -206,7 +206,7 @@ func TestRemoteGatherAndDiff(t *testing.T) {
 	session := setupTestServer(t)
 
 	// Find two log files to diff.
-	cmdOut := callToolRemote[remoteRunCommandResult](t, session, "run_remote_command", map[string]any{
+	cmdOut := callToolRemote[remoteRunCommandResult](t, session, "log_run_remote_command", map[string]any{
 		"hosts":   []string{host},
 		"command": "find /var/log -maxdepth 1 -name '*.log' -size +0c -type f 2>/dev/null | head -2",
 	})
@@ -225,7 +225,7 @@ func TestRemoteGatherAndDiff(t *testing.T) {
 	t.Logf("diffing remote files: %s vs %s", path1, path2)
 
 	// Gather both files.
-	gatherOut := callToolRemote[remoteGatherResult](t, session, "gather_remote_logs", map[string]any{
+	gatherOut := callToolRemote[remoteGatherResult](t, session, "log_gather_remote", map[string]any{
 		"hosts":          []string{host},
 		"paths":          []string{path1, path2},
 		"max_file_bytes": 1048576,
@@ -254,7 +254,7 @@ func TestRemoteGatherAndDiff(t *testing.T) {
 	local2 := goodFiles[1].LocalPath
 
 	// Diff the two local copies.
-	diffOut := callToolRemote[diffLogsResult](t, session, "diff_logs", map[string]any{
+	diffOut := callToolRemote[diffLogsResult](t, session, "log_diff", map[string]any{
 		"base_path":   local1,
 		"target_path": local2,
 	})

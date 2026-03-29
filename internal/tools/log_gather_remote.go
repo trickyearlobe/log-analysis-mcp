@@ -10,7 +10,7 @@ import (
 	"github.com/trickyearlobe/log-analysis-mcp/internal/remote"
 )
 
-// GatherRemoteLogsInput defines the parameters for the gather_remote_logs tool.
+// GatherRemoteLogsInput defines the parameters for the log_gather_remote tool.
 type GatherRemoteLogsInput struct {
 	Hosts          []string `json:"hosts"                      jsonschema:"SSH targets in [user@]host[:port] format"`
 	Paths          []string `json:"paths,omitempty"             jsonschema:"Remote file paths to gather"`
@@ -31,7 +31,7 @@ type GatheredFile struct {
 	Error      string `json:"error,omitempty"`
 }
 
-// GatherRemoteLogsOutput is the structured result of the gather_remote_logs tool.
+// GatherRemoteLogsOutput is the structured result of the log_gather_remote tool.
 type GatherRemoteLogsOutput struct {
 	Files   []GatheredFile `json:"files"`
 	TempDir string         `json:"temp_dir"`
@@ -49,10 +49,10 @@ func flattenPath(p string) string {
 // RunGatherRemoteLogs gathers log files and journal exports from remote hosts over SSH.
 func RunGatherRemoteLogs(input GatherRemoteLogsInput) (GatherRemoteLogsOutput, error) {
 	if len(input.Hosts) == 0 {
-		return GatherRemoteLogsOutput{}, fmt.Errorf("gather_remote_logs: hosts must not be empty")
+		return GatherRemoteLogsOutput{}, fmt.Errorf("log_gather_remote: hosts must not be empty")
 	}
 	if len(input.Paths) == 0 && len(input.JournalUnits) == 0 {
-		return GatherRemoteLogsOutput{}, fmt.Errorf("gather_remote_logs: at least one of paths or journal_units must be provided")
+		return GatherRemoteLogsOutput{}, fmt.Errorf("log_gather_remote: at least one of paths or journal_units must be provided")
 	}
 
 	maxBytes := int64(DefaultInt(input.MaxFileBytes, 104857600))
@@ -60,7 +60,7 @@ func RunGatherRemoteLogs(input GatherRemoteLogsInput) (GatherRemoteLogsOutput, e
 
 	tmpDir, err := os.MkdirTemp("", "log-analysis-mcp-gather-")
 	if err != nil {
-		return GatherRemoteLogsOutput{}, fmt.Errorf("gather_remote_logs: create temp dir: %w", err)
+		return GatherRemoteLogsOutput{}, fmt.Errorf("log_gather_remote: create temp dir: %w", err)
 	}
 	registerTempFile(tmpDir)
 

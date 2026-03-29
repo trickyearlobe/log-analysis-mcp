@@ -92,7 +92,7 @@ type SeenAt struct {
     LineNumber int     `json:"line_number"`
 }
 
-// ErrorCluster represents a cluster of similar errors from extract_errors.
+// ErrorCluster represents a cluster of similar errors from log_extract_errors.
 type ErrorCluster struct {
     Pattern        string   `json:"pattern"`
     Count          int      `json:"count"`

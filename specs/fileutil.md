@@ -116,7 +116,7 @@ Efficiently read the last N lines of a log file without scanning from the beginn
 
 ### Purpose
 
-Enable multi-file tools (e.g., `correlate_logs`, multi-path `search_logs`) to process several files in parallel while supporting cancellation and structured error propagation.
+Enable multi-file tools (e.g., `log_correlate`, multi-path `log_search`) to process several files in parallel while supporting cancellation and structured error propagation.
 
 ### Inputs
 

@@ -18,7 +18,7 @@ const correlatePageSize = 1000
 // maxCorrelatedGroups is the maximum number of groups returned.
 const maxCorrelatedGroups = 50
 
-// CorrelateLogsInput defines the parameters for the correlate_logs tool.
+// CorrelateLogsInput defines the parameters for the log_correlate tool.
 type CorrelateLogsInput struct {
 	Paths             []string `json:"paths"                          jsonschema:"Array of log file paths (2-10 files)"`
 	CorrelationField  string   `json:"correlation_field,omitempty"    jsonschema:"Field name for correlation"`
@@ -31,7 +31,7 @@ type FileAnalysis struct {
 	EntriesParsed int    `json:"entries_parsed"`
 }
 
-// CorrelateLogsOutput is the structured result of the correlate_logs tool.
+// CorrelateLogsOutput is the structured result of the log_correlate tool.
 type CorrelateLogsOutput struct {
 	CorrelatedGroups []types.CorrelatedGroup `json:"correlated_groups"`
 	TotalGroups      int                     `json:"total_groups"`
@@ -54,16 +54,16 @@ func RunCorrelateLogs(input CorrelateLogsInput) (CorrelateLogsOutput, error) {
 
 	// Validate path count.
 	if len(input.Paths) < 2 {
-		return CorrelateLogsOutput{}, fmt.Errorf("correlate_logs: VALIDATION_ERROR: at least 2 file paths required, got %d", len(input.Paths))
+		return CorrelateLogsOutput{}, fmt.Errorf("log_correlate: VALIDATION_ERROR: at least 2 file paths required, got %d", len(input.Paths))
 	}
 	if len(input.Paths) > 10 {
-		return CorrelateLogsOutput{}, fmt.Errorf("correlate_logs: VALIDATION_ERROR: at most 10 file paths allowed, got %d", len(input.Paths))
+		return CorrelateLogsOutput{}, fmt.Errorf("log_correlate: VALIDATION_ERROR: at most 10 file paths allowed, got %d", len(input.Paths))
 	}
 
 	// Validate file access for each path.
 	for _, p := range input.Paths {
 		if err := CheckFileAccess(p); err != nil {
-			return CorrelateLogsOutput{}, fmt.Errorf("correlate_logs: %w", err)
+			return CorrelateLogsOutput{}, fmt.Errorf("log_correlate: %w", err)
 		}
 	}
 
@@ -81,7 +81,7 @@ func RunCorrelateLogs(input CorrelateLogsInput) (CorrelateLogsOutput, error) {
 		// Sample lines and auto-detect format.
 		sample, err := SampleLines(path, sampleLineCount)
 		if err != nil {
-			return CorrelateLogsOutput{}, fmt.Errorf("correlate_logs: %w", err)
+			return CorrelateLogsOutput{}, fmt.Errorf("log_correlate: %w", err)
 		}
 		_, parser := parsers.AutoDetectWithHint(sample, "")
 
@@ -97,7 +97,7 @@ func RunCorrelateLogs(input CorrelateLogsInput) (CorrelateLogsOutput, error) {
 		for {
 			result, readErr := fileutil.ReadLines(path, startLine, correlatePageSize)
 			if readErr != nil {
-				return CorrelateLogsOutput{}, fmt.Errorf("correlate_logs: read %s at line %d: %w", path, startLine, readErr)
+				return CorrelateLogsOutput{}, fmt.Errorf("log_correlate: read %s at line %d: %w", path, startLine, readErr)
 			}
 
 			for _, lr := range result.Lines {

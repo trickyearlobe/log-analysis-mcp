@@ -1,4 +1,4 @@
-# Tool: `correlate_logs`
+# Tool: `log_correlate`
 
 **Description (shown to LLM):**
 > Correlate events across multiple log files using shared identifiers like request IDs or trace IDs. Builds a unified timeline showing how a single request or operation flows through different components. Useful for distributed system debugging.
@@ -96,7 +96,7 @@ func handleCorrelateLogs(ctx context.Context, req *mcp.CallToolRequest, input Co
 
 ```go
 mcp.AddTool(server, &mcp.Tool{
-    Name:        "correlate_logs",
+    Name:        "log_correlate",
     Description: "Correlate events across multiple log files using shared identifiers like request IDs or trace IDs. Builds a unified timeline showing how a single request or operation flows through different components. Useful for distributed system debugging.",
 }, handleCorrelateLogs)
 ```
@@ -155,4 +155,4 @@ mcp.AddTool(server, &mcp.Tool{
 
 ## Example Usage Scenario
 
-An AI assistant is debugging a failed API request. It has log files from three microservices and uses `correlate_logs` with `correlation_field: "request_id"` to trace the request's journey through the system and find where it failed.
+An AI assistant is debugging a failed API request. It has log files from three microservices and uses `log_correlate` with `correlation_field: "request_id"` to trace the request's journey through the system and find where it failed.

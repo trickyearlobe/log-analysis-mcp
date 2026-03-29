@@ -1,4 +1,4 @@
-# Tool: `detect_anomalies`
+# Tool: `log_detect_anomalies`
 
 **Description (shown to LLM):**
 > Detect anomalous patterns in log files such as sudden error spikes, new error types that haven't appeared before, gaps in logging (periods with no entries), and significant changes in log volume. Analyzes the temporal distribution of log entries to find unusual behavior.
@@ -96,7 +96,7 @@ func handleDetectAnomalies(ctx context.Context, req *mcp.CallToolRequest, input 
 
 ```go
 mcp.AddTool(server, &mcp.Tool{
-    Name:        "detect_anomalies",
+    Name:        "log_detect_anomalies",
     Description: "Detect anomalous patterns in log files such as sudden error spikes, new error types that haven't appeared before, gaps in logging (periods with no entries), and significant changes in log volume. Analyzes the temporal distribution of log entries to find unusual behavior.",
 }, handleDetectAnomalies)
 ```
@@ -189,4 +189,4 @@ The anomaly detection handler performs the following steps:
 
 ## Example Usage Scenario
 
-An AI assistant is investigating why a service degraded at a particular time. It calls `detect_anomalies` to automatically find error spikes and rate changes without manually scanning through the file.
+An AI assistant is investigating why a service degraded at a particular time. It calls `log_detect_anomalies` to automatically find error spikes and rate changes without manually scanning through the file.

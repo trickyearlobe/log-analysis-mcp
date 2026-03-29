@@ -15,7 +15,7 @@ import (
 // maxDiscoveryOutputBytes caps the output from any single remote command.
 const maxDiscoveryOutputBytes = 1048576
 
-// DiscoverRemoteLogsInput defines the parameters for the discover_remote_logs tool.
+// DiscoverRemoteLogsInput defines the parameters for the log_discover_remote tool.
 type DiscoverRemoteLogsInput struct {
 	Hosts           []string `json:"hosts"                      jsonschema:"SSH targets in [user@]host[:port] format"`
 	AdditionalPaths []string `json:"additional_paths,omitempty"  jsonschema:"Extra directories to scan for log files"`
@@ -40,7 +40,7 @@ type HostDiscoveryResult struct {
 	Error string          `json:"error,omitempty"`
 }
 
-// DiscoverRemoteLogsOutput is the structured result of the discover_remote_logs tool.
+// DiscoverRemoteLogsOutput is the structured result of the log_discover_remote tool.
 type DiscoverRemoteLogsOutput struct {
 	Results []HostDiscoveryResult `json:"results"`
 }
@@ -62,7 +62,7 @@ var rotationIndexRe = regexp.MustCompile(`\.(\d+)(?:\.gz|\.bz2)?$`)
 // RunDiscoverRemoteLogs discovers log files and journal units on remote hosts via SSH.
 func RunDiscoverRemoteLogs(input DiscoverRemoteLogsInput) (DiscoverRemoteLogsOutput, error) {
 	if len(input.Hosts) == 0 {
-		return DiscoverRemoteLogsOutput{}, fmt.Errorf("discover_remote_logs: hosts is required and must contain at least one SSH target")
+		return DiscoverRemoteLogsOutput{}, fmt.Errorf("log_discover_remote: hosts is required and must contain at least one SSH target")
 	}
 
 	input.TimeoutSeconds = DefaultInt(input.TimeoutSeconds, 30)

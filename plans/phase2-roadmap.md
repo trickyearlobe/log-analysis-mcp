@@ -64,17 +64,17 @@ scoped to the feature that requires them.
 6. `go test -race ./...` && `go vet ./...`.
 
 **Acceptance:**
-- `read_logs /var/log/syslog.gz` works.
-- `tail_logs /var/log/app.log.bz2` works (slower than uncompressed, documented).
-- `search_logs` on a `.zip` containing a log file works.
+- `log_read /var/log/syslog.gz` works.
+- `log_tail /var/log/app.log.bz2` works (slower than uncompressed, documented).
+- `log_search` on a `.zip` containing a log file works.
 - All 668+ existing tests still pass.
 
 ---
 
 ## Phase 2: Log Diff Tool ✅
 
-Complete. `diff_logs` tool with file-vs-file and time-range modes.
-Spec: `specs/tools/diff_logs.md`. 13 unit tests + 3 integration tests.
+Complete. `log_diff` tool with file-vs-file and time-range modes.
+Spec: `specs/tools/log_diff.md`. 13 unit tests + 3 integration tests.
 
 ---
 
@@ -135,9 +135,9 @@ Complete. All sub-phases delivered:
 
 - **5a** SSH infrastructure (`internal/remote/`): auth chain, connection pooling,
   host key verification, command exec, file download, journal export. 22 unit tests.
-- **5b** `run_remote_command` tool. 5 unit tests.
-- **5c** `discover_remote_logs` tool. Rotated file grouping, journal detection. Unit tests.
-- **5d** `gather_remote_logs` tool. Size-guarded download, temp file management. Unit tests.
+- **5b** `log_run_remote_command` tool. 5 unit tests.
+- **5c** `log_discover_remote` tool. Rotated file grouping, journal detection. Unit tests.
+- **5d** `log_gather_remote` tool. Size-guarded download, temp file management. Unit tests.
 - **5e** `investigate_remote` prompt. 10-step multi-system workflow. 4 prompt tests +
   5 SSH-guarded integration tests (discover → gather → summarize → diff).
 - **macOS firewall proxy fallback**: `dialTCP` tries `net.Dial` first, falls back to
@@ -164,5 +164,5 @@ whether Claude Desktop / MCP Inspector surface progress notifications.
    legacy Windows needed? (Deferred until user feedback.)
 2. **Live tailing delivery:** Progress notifications vs log messages vs resource
    subscriptions — which does Claude Desktop actually surface to the user?
-3. **Compressed tail performance:** Is the ring-buffer fallback for `tail_logs` on
+3. **Compressed tail performance:** Is the ring-buffer fallback for `log_tail` on
    compressed files acceptable, or should we document it as unsupported?

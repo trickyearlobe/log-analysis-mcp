@@ -1,4 +1,4 @@
-# Tool: `extract_errors`
+# Tool: `log_extract_errors`
 
 ## Description (shown to LLM)
 
@@ -83,7 +83,7 @@ func handleExtractErrors(ctx context.Context, req *mcp.CallToolRequest, input Ex
 
 ```go
 mcp.AddTool(server, &mcp.Tool{
-    Name:        "extract_errors",
+    Name:        "log_extract_errors",
     Description: "Extract all error messages and exceptions from a log file, then cluster them by similarity to identify distinct error types. Includes stack traces when available. Useful for understanding the error landscape of a system.",
 }, handleExtractErrors)
 ```
@@ -140,4 +140,4 @@ mcp.AddTool(server, &mcp.Tool{
 
 ## Example Usage Scenario
 
-An AI assistant needs to understand the error landscape of a production system. It calls `extract_errors` to see all unique error types, their frequencies, and representative stack traces, enabling quick prioritization.
+An AI assistant needs to understand the error landscape of a production system. It calls `log_extract_errors` to see all unique error types, their frequencies, and representative stack traces, enabling quick prioritization.

@@ -16,7 +16,7 @@ const detectAnomaliesPageSize = 1000
 // maxEvidenceLines is the maximum number of evidence lines kept per anomaly.
 const maxEvidenceLines = 5
 
-// DetectAnomaliesInput defines the parameters for the detect_anomalies tool.
+// DetectAnomaliesInput defines the parameters for the log_detect_anomalies tool.
 type DetectAnomaliesInput struct {
 	Path          string `json:"path"                    jsonschema:"Path to the log file"`
 	WindowMinutes int    `json:"window_minutes,omitempty" jsonschema:"Time window in minutes for rate analysis"`
@@ -32,7 +32,7 @@ type AnalysisMetadata struct {
 	WindowsAnalyzed    int     `json:"windows_analyzed"`
 }
 
-// DetectAnomaliesOutput is the structured result of the detect_anomalies tool.
+// DetectAnomaliesOutput is the structured result of the log_detect_anomalies tool.
 type DetectAnomaliesOutput struct {
 	Anomalies        []types.Anomaly  `json:"anomalies"`
 	AnalysisMetadata AnalysisMetadata `json:"analysis_metadata"`
@@ -93,13 +93,13 @@ func RunDetectAnomalies(input DetectAnomaliesInput) (DetectAnomaliesOutput, erro
 
 	// Validate file access.
 	if err := CheckFileAccess(input.Path); err != nil {
-		return DetectAnomaliesOutput{}, fmt.Errorf("detect_anomalies: %w", err)
+		return DetectAnomaliesOutput{}, fmt.Errorf("log_detect_anomalies: %w", err)
 	}
 
 	// Sample lines and auto-detect format.
 	sampleLines, err := SampleLines(input.Path, sampleLineCount)
 	if err != nil {
-		return DetectAnomaliesOutput{}, fmt.Errorf("detect_anomalies: %w", err)
+		return DetectAnomaliesOutput{}, fmt.Errorf("log_detect_anomalies: %w", err)
 	}
 
 	_, parser := parsers.AutoDetectWithHint(sampleLines, "")
@@ -133,7 +133,7 @@ func RunDetectAnomalies(input DetectAnomaliesInput) (DetectAnomaliesOutput, erro
 	for {
 		result, err := fileutil.ReadLines(input.Path, startLine, detectAnomaliesPageSize)
 		if err != nil {
-			return DetectAnomaliesOutput{}, fmt.Errorf("detect_anomalies: read at line %d: %w", startLine, err)
+			return DetectAnomaliesOutput{}, fmt.Errorf("log_detect_anomalies: read at line %d: %w", startLine, err)
 		}
 
 		totalLines += len(result.Lines)

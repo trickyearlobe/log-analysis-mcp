@@ -7,7 +7,7 @@ import (
 	"github.com/trickyearlobe/log-analysis-mcp/internal/fileutil"
 )
 
-// ReadLogsInput defines the parameters for the read_logs tool.
+// ReadLogsInput defines the parameters for the log_read tool.
 type ReadLogsInput struct {
 	Path      string `json:"path"                 jsonschema:"Path to the log file"`
 	StartLine int    `json:"start_line,omitempty" jsonschema:"Line number to start reading from (1-based)"`
@@ -21,7 +21,7 @@ type LineRange struct {
 	End   int `json:"end"`
 }
 
-// ReadLogsOutput is the structured result of the read_logs tool.
+// ReadLogsOutput is the structured result of the log_read tool.
 type ReadLogsOutput struct {
 	Lines         []LogLine `json:"lines"`
 	TotalLines    int       `json:"total_lines"`
@@ -40,19 +40,19 @@ func RunReadLogs(input ReadLogsInput) (ReadLogsOutput, error) {
 
 	// Validate file access (exists, readable, not binary).
 	if err := CheckFileAccess(input.Path); err != nil {
-		return ReadLogsOutput{}, fmt.Errorf("read_logs: %w", err)
+		return ReadLogsOutput{}, fmt.Errorf("log_read: %w", err)
 	}
 
 	// Get file size for metadata.
 	size, err := FileSize(input.Path)
 	if err != nil {
-		return ReadLogsOutput{}, fmt.Errorf("read_logs: %w", err)
+		return ReadLogsOutput{}, fmt.Errorf("log_read: %w", err)
 	}
 
 	// Stream lines from the file.
 	result, err := fileutil.ReadLines(input.Path, input.StartLine, input.NumLines)
 	if err != nil {
-		return ReadLogsOutput{}, fmt.Errorf("read_logs: %w", err)
+		return ReadLogsOutput{}, fmt.Errorf("log_read: %w", err)
 	}
 
 	// Convert fileutil.LineRecord slice to LogLine slice.

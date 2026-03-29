@@ -1,4 +1,4 @@
-# Tool: `diff_logs`
+# Tool: `log_diff`
 
 ## Description (shown to LLM)
 
@@ -64,7 +64,7 @@ each entry is assigned to the base period, target period, or neither based on it
    - Bucket by level (map[string]int).
    - Bucket by source (map[string]int).
    - Track error messages: normalize with `normalizeMessage` (reused from
-     `extract_errors.go`), accumulate into a `map[string]*clusterAccumulator`.
+     `log_extract_errors.go`), accumulate into a `map[string]*clusterAccumulator`.
    - Track earliest/latest timestamp.
    - Bucket by minute for throughput.
 
@@ -148,9 +148,9 @@ None — all optional fields default to empty string (no time filtering).
 
 | Component           | From                        | Purpose                              |
 | ------------------- | --------------------------- | ------------------------------------ |
-| `normalizeMessage`  | `extract_errors.go`         | Normalize error messages for clustering |
-| `isErrorLevel`      | `extract_errors.go`         | Check if a level is ERROR/FATAL/CRITICAL |
-| `parseTimestamp`    | `extract_errors.go`         | Parse timestamps in multiple formats |
+| `normalizeMessage`  | `log_extract_errors.go`         | Normalize error messages for clustering |
+| `isErrorLevel`      | `log_extract_errors.go`         | Check if a level is ERROR/FATAL/CRITICAL |
+| `parseTimestamp`    | `log_extract_errors.go`         | Parse timestamps in multiple formats |
 | `fileutil.ReadLines`| `internal/fileutil`         | Paginated streaming file reader      |
 | `parsers.AutoDetectWithHint` | `internal/parsers` | Format detection and parser selection |
 
@@ -168,7 +168,7 @@ None — all optional fields default to empty string (no time filtering).
 
 ## Testing Strategy
 
-Table-driven tests in `diff_logs_test.go` covering:
+Table-driven tests in `log_diff_test.go` covering:
 
 1. **Two different files** — base has errors A, B; target has errors B, C → new=[C], resolved=[A], changed=[B].
 2. **Identical files** — all diff sections empty except level/source changes (which show zero deltas).

@@ -76,7 +76,7 @@ These would be exposed as additional tools (e.g., `query_loki`, `search_datadog`
 
 ### Log Diff Tool
 
-A `diff_logs` tool that compares two log files or two time periods within the same file, highlighting:
+A `log_diff` tool that compares two log files or two time periods within the same file, highlighting:
 
 - New error types that appear in the second set but not the first
 - Changes in error rates or level distribution

@@ -1,4 +1,4 @@
-# Tool: `timeline`
+# Tool: `log_timeline`
 
 **Description (shown to LLM):**
 > Build a chronological event timeline from log entries. Filters for significant events (errors, warnings, startups, shutdowns, deployments) and presents them in time order. Useful for understanding the sequence of events during an incident.
@@ -96,7 +96,7 @@ func handleTimeline(ctx context.Context, req *mcp.CallToolRequest, input Timelin
 
 ```go
 mcp.AddTool(server, &mcp.Tool{
-    Name:        "timeline",
+    Name:        "log_timeline",
     Description: "Build a chronological event timeline from log entries. Filters for significant events (errors, warnings, startups, shutdowns, deployments) and presents them in time order. Useful for understanding the sequence of events during an incident.",
 }, handleTimeline)
 ```
@@ -160,4 +160,4 @@ mcp.AddTool(server, &mcp.Tool{
 
 ## Example Usage Scenario
 
-An AI assistant is building an incident timeline. It calls `timeline` with `after` and `before` timestamps bracketing the incident, filtering for ERROR, WARN, and lifecycle events, to produce a clear chronological narrative.
+An AI assistant is building an incident timeline. It calls `log_timeline` with `after` and `before` timestamps bracketing the incident, filtering for ERROR, WARN, and lifecycle events, to produce a clear chronological narrative.

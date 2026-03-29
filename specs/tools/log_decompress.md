@@ -1,4 +1,4 @@
-# Tool: `decompress_file`
+# Tool: `log_decompress`
 
 **Description (shown to LLM):**
 > Decompress a compressed log file (.gz, .bz2, .zip) to a temporary plain-text
@@ -65,7 +65,7 @@ func handleDecompressFile(ctx context.Context, req *mcp.CallToolRequest, input D
 
 ```go
 mcp.AddTool(server, &mcp.Tool{
-    Name:        "decompress_file",
+    Name:        "log_decompress",
     Description: "Decompress a compressed log file (.gz, .bz2, .zip) to a temporary plain-text file on disk. Use this before running multiple tools on the same compressed file — it pays the decompression cost once, then all subsequent tools get full seekable performance. For a single tool call, you can pass the compressed path directly — all tools handle decompression transparently.",
 }, handleDecompressFile)
 ```
@@ -96,7 +96,7 @@ mcp.AddTool(server, &mcp.Tool{
 
 ### Registry
 
-A package-level registry in `internal/tools/decompress_file.go`:
+A package-level registry in `internal/tools/log_decompress.go`:
 
 ```go
 var (
@@ -143,12 +143,12 @@ removed before returning.
 ## Usage Scenario
 
 An AI assistant is asked to investigate errors in `/var/log/app.log.gz`. It
-recognises this will require `summarize_logs`, `extract_errors`, `search_logs`,
-and `detect_anomalies` — four decompression passes on the same file. Instead,
-it first calls `decompress_file` to get a temp path, then passes that path to
+recognises this will require `log_summarize`, `log_extract_errors`, `log_search`,
+and `log_detect_anomalies` — four decompression passes on the same file. Instead,
+it first calls `log_decompress` to get a temp path, then passes that path to
 all four tools. The result is one decompression pass plus four fast seekable
 reads, rather than four full decompression passes.
 
 For a simple "show me the last 20 lines of app.log.gz", the assistant skips
-`decompress_file` and calls `tail_logs` directly — transparent decompression
+`log_decompress` and calls `log_tail` directly — transparent decompression
 handles it in a single pass.

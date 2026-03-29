@@ -7,7 +7,7 @@ import (
 	"github.com/trickyearlobe/log-analysis-mcp/internal/remote"
 )
 
-// RunRemoteCommandInput defines the parameters for the run_remote_command tool.
+// RunRemoteCommandInput defines the parameters for the log_run_remote_command tool.
 type RunRemoteCommandInput struct {
 	Hosts          []string `json:"hosts"                      jsonschema:"SSH targets in [user@]host[:port] format"`
 	Command        string   `json:"command"                    jsonschema:"Shell command to execute on each host"`
@@ -24,7 +24,7 @@ type HostCommandResult struct {
 	Error    string `json:"error,omitempty"`
 }
 
-// RunRemoteCommandOutput is the structured result of the run_remote_command tool.
+// RunRemoteCommandOutput is the structured result of the log_run_remote_command tool.
 type RunRemoteCommandOutput struct {
 	Results []HostCommandResult `json:"results"`
 }
@@ -32,10 +32,10 @@ type RunRemoteCommandOutput struct {
 // RunRunRemoteCommand executes a shell command on one or more remote hosts over SSH.
 func RunRunRemoteCommand(input RunRemoteCommandInput) (RunRemoteCommandOutput, error) {
 	if len(input.Hosts) == 0 {
-		return RunRemoteCommandOutput{}, fmt.Errorf("run_remote_command: hosts must not be empty")
+		return RunRemoteCommandOutput{}, fmt.Errorf("log_run_remote_command: hosts must not be empty")
 	}
 	if input.Command == "" {
-		return RunRemoteCommandOutput{}, fmt.Errorf("run_remote_command: command must not be empty")
+		return RunRemoteCommandOutput{}, fmt.Errorf("log_run_remote_command: command must not be empty")
 	}
 
 	input.TimeoutSeconds = DefaultInt(input.TimeoutSeconds, 30)

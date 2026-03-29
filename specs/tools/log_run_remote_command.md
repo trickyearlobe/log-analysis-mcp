@@ -1,4 +1,4 @@
-# Tool: `run_remote_command`
+# Tool: `log_run_remote_command`
 
 **Description (shown to LLM):**
 > Execute a command on one or more remote hosts via SSH. Returns stdout, stderr, and exit code per host. Useful for custom log discovery, quick system checks, and flexible remote operations.
@@ -88,7 +88,7 @@ func handleRunRemoteCommand(ctx context.Context, req *mcp.CallToolRequest, input
 
 ```go
 mcp.AddTool(server, &mcp.Tool{
-    Name:        "run_remote_command",
+    Name:        "log_run_remote_command",
     Description: "Execute a command on one or more remote hosts via SSH. Returns stdout, stderr, and exit code per host. Useful for custom log discovery, quick system checks, and flexible remote operations.",
 }, handleRunRemoteCommand)
 ```
@@ -118,4 +118,4 @@ mcp.AddTool(server, &mcp.Tool{
 
 ## Usage Scenario
 
-An AI assistant is asked to check disk space across a fleet of servers. It calls `run_remote_command` with `hosts: ["web01", "web02", "db01"]` and `command: "df -h /var/log"` to get a quick snapshot without needing a specialised tool.
+An AI assistant is asked to check disk space across a fleet of servers. It calls `log_run_remote_command` with `hosts: ["web01", "web02", "db01"]` and `command: "df -h /var/log"` to get a quick snapshot without needing a specialised tool.

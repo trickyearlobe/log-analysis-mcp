@@ -1,4 +1,4 @@
-# Tool: `search_logs`
+# Tool: `log_search`
 
 **Description (shown to LLM):**
 > Search a log file using regex or text patterns. Returns matching lines with optional surrounding context. Useful for finding specific errors, request IDs, or patterns in log files.
@@ -100,7 +100,7 @@ func handleSearchLogs(ctx context.Context, req *mcp.CallToolRequest, input Searc
 
 ```go
 mcp.AddTool(server, &mcp.Tool{
-    Name:        "search_logs",
+    Name:        "log_search",
     Description: "Search a log file using regex or text patterns. Returns matching lines with optional surrounding context. Useful for finding specific errors, request IDs, or patterns in log files.",
 }, handleSearchLogs)
 ```

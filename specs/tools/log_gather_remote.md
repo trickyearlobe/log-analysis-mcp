@@ -1,9 +1,9 @@
-# Tool: `gather_remote_logs`
+# Tool: `log_gather_remote`
 
 **Description (shown to LLM):**
 > Download log files and export systemd journal units from remote hosts to local
 > temporary files. Returns local paths that can be passed directly to other
-> analysis tools such as `read_logs`, `search_logs`, or `extract_errors`.
+> analysis tools such as `log_read`, `log_search`, or `log_extract_errors`.
 
 ---
 
@@ -130,7 +130,7 @@ func handleGatherRemoteLogs(ctx context.Context, req *mcp.CallToolRequest, input
 
 ```go
 mcp.AddTool(server, &mcp.Tool{
-	Name:        "gather_remote_logs",
+	Name:        "log_gather_remote",
 	Description: "Download log files and export systemd journal units from remote hosts to local temporary files. Returns local paths that can be passed directly to other analysis tools.",
 }, handleGatherRemoteLogs)
 ```
@@ -140,7 +140,7 @@ mcp.AddTool(server, &mcp.Tool{
 ## Temp File Lifecycle
 
 Temporary files created by this tool are registered in the same process-level
-cleanup registry used by `decompress_file`. The `TempDir` and all its contents
+cleanup registry used by `log_decompress`. The `TempDir` and all its contents
 are removed by `CleanupTempFiles()` during server shutdown.
 
 If the server crashes, temp files remain in `os.TempDir()`. The
@@ -183,8 +183,8 @@ that prevent any work from starting.
 ## Usage Scenario
 
 An AI assistant is asked to investigate errors across a web cluster. It first
-calls `discover_remote_logs` to find available log files, then calls
-`gather_remote_logs` to download the relevant files locally. The returned
-`local_path` values are passed to `extract_errors`, `search_logs`, and
-`summarize_logs` for analysis — all running against fast local files with no
+calls `log_discover_remote` to find available log files, then calls
+`log_gather_remote` to download the relevant files locally. The returned
+`local_path` values are passed to `log_extract_errors`, `log_search`, and
+`log_summarize` for analysis — all running against fast local files with no
 repeated SSH overhead.

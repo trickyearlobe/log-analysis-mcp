@@ -1,7 +1,7 @@
 # Remote SSH Infrastructure
 
-Shared SSH client infrastructure used by `run_remote_command`, `discover_remote_logs`,
-and `gather_remote_logs` tools.
+Shared SSH client infrastructure used by `log_run_remote_command`, `log_discover_remote`,
+and `log_gather_remote` tools.
 
 ## Prerequisites
 
@@ -375,9 +375,9 @@ via the SSH exec channel, so single-quote wrapping is sufficient.
 | Operation | Default | Configurable via |
 |-----------|---------|------------------|
 | SSH dial | 30s | `ClientPool` constructor |
-| `run_remote_command` | 30s | `timeout_seconds` input field |
-| `discover_remote_logs` per host | 30s | `timeout_seconds` input field |
-| `gather_remote_logs` per file | 300s (5min) | `timeout_seconds` input field |
+| `log_run_remote_command` | 30s | `timeout_seconds` input field |
+| `log_discover_remote` per host | 30s | `timeout_seconds` input field |
+| `log_gather_remote` per file | 300s (5min) | `timeout_seconds` input field |
 | Journal export | 300s (5min) | same as gather |
 
 ---
@@ -386,9 +386,9 @@ via the SSH exec channel, so single-quote wrapping is sufficient.
 
 | Operation | Default | Configurable via |
 |-----------|---------|------------------|
-| `run_remote_command` stdout | 1 MB | `max_output_bytes` input field |
-| `gather_remote_logs` per file | 100 MB | `max_file_bytes` input field |
-| `discover_remote_logs` output | 1 MB | not configurable (discovery output is metadata, always small) |
+| `log_run_remote_command` stdout | 1 MB | `max_output_bytes` input field |
+| `log_gather_remote` per file | 100 MB | `max_file_bytes` input field |
+| `log_discover_remote` output | 1 MB | not configurable (discovery output is metadata, always small) |
 
 ---
 

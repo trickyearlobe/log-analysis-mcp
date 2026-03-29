@@ -14,7 +14,7 @@ import (
 // filterPageSize is the number of lines to read per streaming page.
 const filterPageSize = 1000
 
-// FilterLogsInput defines the parameters for the filter_logs tool.
+// FilterLogsInput defines the parameters for the log_filter tool.
 type FilterLogsInput struct {
 	Path           string   `json:"path"                      jsonschema:"Path to the log file"`
 	Level          []string `json:"level,omitempty"           jsonschema:"Log levels to include (e.g. ERROR, WARN)"`
@@ -42,7 +42,7 @@ type AppliedFilters struct {
 	Before string   `json:"before,omitempty"`
 }
 
-// FilterLogsOutput is the structured result of the filter_logs tool.
+// FilterLogsOutput is the structured result of the log_filter tool.
 type FilterLogsOutput struct {
 	Entries        []FilteredEntry `json:"entries"`
 	TotalMatched   int             `json:"total_matched"`
@@ -60,13 +60,13 @@ func RunFilterLogs(input FilterLogsInput) (FilterLogsOutput, error) {
 
 	// Validate file access.
 	if err := CheckFileAccess(input.Path); err != nil {
-		return FilterLogsOutput{}, fmt.Errorf("filter_logs: %w", err)
+		return FilterLogsOutput{}, fmt.Errorf("log_filter: %w", err)
 	}
 
 	// Sample lines and auto-detect format.
 	sample, err := SampleLines(input.Path, sampleLineCount)
 	if err != nil {
-		return FilterLogsOutput{}, fmt.Errorf("filter_logs: %w", err)
+		return FilterLogsOutput{}, fmt.Errorf("log_filter: %w", err)
 	}
 	_, parser := parsers.AutoDetectWithHint(sample, "")
 	if parser == nil {
@@ -87,7 +87,7 @@ func RunFilterLogs(input FilterLogsInput) (FilterLogsOutput, error) {
 		var compileErr error
 		sourceRe, _, compileErr = CompilePattern(input.Source, true, false)
 		if compileErr != nil {
-			return FilterLogsOutput{}, fmt.Errorf("filter_logs: %w", compileErr)
+			return FilterLogsOutput{}, fmt.Errorf("log_filter: %w", compileErr)
 		}
 	}
 
@@ -97,7 +97,7 @@ func RunFilterLogs(input FilterLogsInput) (FilterLogsOutput, error) {
 		var compileErr error
 		messageRe, _, compileErr = CompilePattern(input.MessagePattern, true, false)
 		if compileErr != nil {
-			return FilterLogsOutput{}, fmt.Errorf("filter_logs: %w", compileErr)
+			return FilterLogsOutput{}, fmt.Errorf("log_filter: %w", compileErr)
 		}
 	}
 
@@ -107,7 +107,7 @@ func RunFilterLogs(input FilterLogsInput) (FilterLogsOutput, error) {
 	if input.After != "" {
 		afterTime, err = time.Parse(time.RFC3339, input.After)
 		if err != nil {
-			return FilterLogsOutput{}, fmt.Errorf("filter_logs: INVALID_TIMESTAMP: invalid timestamp format: %q — use ISO 8601 format (e.g., 2025-01-15T10:30:00Z)", input.After)
+			return FilterLogsOutput{}, fmt.Errorf("log_filter: INVALID_TIMESTAMP: invalid timestamp format: %q — use ISO 8601 format (e.g., 2025-01-15T10:30:00Z)", input.After)
 		}
 		hasAfter = true
 	}
@@ -117,7 +117,7 @@ func RunFilterLogs(input FilterLogsInput) (FilterLogsOutput, error) {
 	if input.Before != "" {
 		beforeTime, err = time.Parse(time.RFC3339, input.Before)
 		if err != nil {
-			return FilterLogsOutput{}, fmt.Errorf("filter_logs: INVALID_TIMESTAMP: invalid timestamp format: %q — use ISO 8601 format (e.g., 2025-01-15T10:30:00Z)", input.Before)
+			return FilterLogsOutput{}, fmt.Errorf("log_filter: INVALID_TIMESTAMP: invalid timestamp format: %q — use ISO 8601 format (e.g., 2025-01-15T10:30:00Z)", input.Before)
 		}
 		hasBefore = true
 	}
@@ -138,7 +138,7 @@ func RunFilterLogs(input FilterLogsInput) (FilterLogsOutput, error) {
 	for {
 		result, readErr := fileutil.ReadLines(input.Path, startLine, filterPageSize)
 		if readErr != nil {
-			return FilterLogsOutput{}, fmt.Errorf("filter_logs: read %s at line %d: %w", input.Path, startLine, readErr)
+			return FilterLogsOutput{}, fmt.Errorf("log_filter: read %s at line %d: %w", input.Path, startLine, readErr)
 		}
 
 		for _, lr := range result.Lines {

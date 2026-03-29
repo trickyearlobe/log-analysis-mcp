@@ -43,23 +43,23 @@ Responsibilities:
 - Export a single `Register(srv *server.MCPServer)` function.
 - Call `mcp.AddTool` once for each of the 10 tools listed below.
 - Each `AddTool` call provides the tool's name, description, and a handler function reference.
-- Each handler lives in its own file under `internal/tools/` (e.g. `read_logs.go`, `search_logs.go`). The register file only wires them — it contains no handler logic.
+- Each handler lives in its own file under `internal/tools/` (e.g. `log_read.go`, `log_search.go`). The register file only wires them — it contains no handler logic.
 - Input schemas (via jsonschema struct tags) are defined alongside each handler, not in the register file.
 
 ### Tools to register
 
 | Tool | Handler reference | Purpose (used as the tool description basis) |
 |------|-------------------|----------------------------------------------|
-| `read_logs` | `handleReadLogs` | Read a log file with line-range pagination |
-| `search_logs` | `handleSearchLogs` | Regex/text search with optional context lines |
-| `parse_logs` | `handleParseLogs` | Auto-detect format and extract structured fields |
-| `filter_logs` | `handleFilterLogs` | Filter by level, time range, source, or message pattern |
-| `summarize_logs` | `handleSummarizeLogs` | Statistical summary: level distribution, top errors, rates |
-| `tail_logs` | `handleTailLogs` | Read last N lines (most recent entries) |
-| `detect_anomalies` | `handleDetectAnomalies` | Find error spikes, new error types, logging gaps |
-| `extract_errors` | `handleExtractErrors` | Cluster errors and exceptions by similarity |
-| `correlate_logs` | `handleCorrelateLogs` | Correlate events across files by request/trace ID |
-| `timeline` | `handleTimeline` | Build chronological event timeline |
+| `log_read` | `handleReadLogs` | Read a log file with line-range pagination |
+| `log_search` | `handleSearchLogs` | Regex/text search with optional context lines |
+| `log_parse` | `handleParseLogs` | Auto-detect format and extract structured fields |
+| `log_filter` | `handleFilterLogs` | Filter by level, time range, source, or message pattern |
+| `log_summarize` | `handleSummarizeLogs` | Statistical summary: level distribution, top errors, rates |
+| `log_tail` | `handleTailLogs` | Read last N lines (most recent entries) |
+| `log_detect_anomalies` | `handleDetectAnomalies` | Find error spikes, new error types, logging gaps |
+| `log_extract_errors` | `handleExtractErrors` | Cluster errors and exceptions by similarity |
+| `log_correlate` | `handleCorrelateLogs` | Correlate events across files by request/trace ID |
+| `log_timeline` | `handleTimeline` | Build chronological event timeline |
 
 ---
 

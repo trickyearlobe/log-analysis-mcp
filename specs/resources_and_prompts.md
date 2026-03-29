@@ -84,15 +84,15 @@ The prompt returns a single `user` role message. The text is constructed from `l
 >
 > Please follow this structured investigation process:
 >
-> 1. **Overview**: First, use the summarize_logs tool to get an overview of the log file. Report the total error count, error rate, and time range.
+> 1. **Overview**: First, use the log_summarize tool to get an overview of the log file. Report the total error count, error rate, and time range.
 >
-> 2. **Error Extraction**: Use the extract_errors tool to identify and cluster all unique error types. List the top 10 error clusters by frequency.
+> 2. **Error Extraction**: Use the log_extract_errors tool to identify and cluster all unique error types. List the top 10 error clusters by frequency.
 >
 > 3. **Timeline Analysis**: Use the timeline tool to build a timeline of error events matching "{error_pattern}". Identify when errors started, whether they correlate with other events (deployments, restarts), and if there are patterns in timing.
 >
-> 4. **Context Gathering**: For the most significant error(s), use search_logs with context_lines=5 to see what happened immediately before and after each occurrence.
+> 4. **Context Gathering**: For the most significant error(s), use log_search with context_lines=5 to see what happened immediately before and after each occurrence.
 >
-> 5. **Anomaly Detection**: Use detect_anomalies to check for error spikes or unusual patterns that might indicate a trigger event.
+> 5. **Anomaly Detection**: Use log_detect_anomalies to check for error spikes or unusual patterns that might indicate a trigger event.
 >
 > 6. **Root Cause Analysis**: Based on all the evidence gathered, provide:
 >    - A summary of findings
@@ -139,21 +139,21 @@ The prompt returns a single `user` role message. The text is constructed from `l
 >
 > Use the following tools to conduct a comprehensive assessment:
 >
-> 1. **File Overview**: Use summarize_logs to get a high-level picture:
+> 1. **File Overview**: Use log_summarize to get a high-level picture:
 >    - How large is the file and what time period does it cover?
 >    - What is the overall log volume and throughput?
 >
 > 2. **Error Assessment**:
 >    - What percentage of log entries are errors or warnings?
->    - Use extract_errors to identify the most common error types.
+>    - Use log_extract_errors to identify the most common error types.
 >    - Is the error rate acceptable (< 1% is healthy, 1-5% is concerning, > 5% is critical)?
 >
-> 3. **Anomaly Scan**: Use detect_anomalies to check for:
+> 3. **Anomaly Scan**: Use log_detect_anomalies to check for:
 >    - Error spikes that might indicate instability
 >    - Gaps in logging that might indicate outages
 >    - Rate changes that might indicate load issues
 >
-> 4. **Recent Activity**: Use tail_logs to check the most recent entries:
+> 4. **Recent Activity**: Use log_tail to check the most recent entries:
 >    - Is the system currently logging normally?
 >    - Are there any active errors or warnings?
 >
@@ -206,7 +206,7 @@ When `incident_id` is provided, the report header instruction includes it:
 > Include the incident ID "{incident_id}" in the report header.
 
 When `comparison_path` is provided, a diff step is included:
-> **Comparison Analysis**: Use the diff_logs tool to compare "{log_path}" (target) against "{comparison_path}" (baseline). Report new errors, resolved errors, rate changes, source changes, and throughput shifts.
+> **Comparison Analysis**: Use the log_diff tool to compare "{log_path}" (target) against "{comparison_path}" (baseline). Report new errors, resolved errors, rate changes, source changes, and throughput shifts.
 
 When `comparison_path` is omitted, the diff step is replaced with:
 > **Comparison Analysis**: No baseline file was provided, so skip the comparison step.
@@ -221,30 +221,30 @@ The full prompt text (with all optional sections present):
 > 1. **Executive Summary** (after completing all steps below):
 >    Summarize the incident in 2-3 sentences: what happened, when, impact, and current status.
 >
-> 2. **System Overview**: Use summarize_logs to establish baseline metrics:
+> 2. **System Overview**: Use log_summarize to establish baseline metrics:
 >    - File size, time range, and total line count
 >    - Log volume and throughput (lines/minute)
 >    - Detected log format
 >
-> 3. **Error Analysis**: Use extract_errors to identify and cluster all error types:
+> 3. **Error Analysis**: Use log_extract_errors to identify and cluster all error types:
 >    - List the top 10 error clusters by frequency
 >    - Note error rate (errors/hour and percentage of all lines)
 >    - Identify any error patterns that suggest a root cause
 >
-> 4. **Anomaly Detection**: Use detect_anomalies to find unusual patterns:
+> 4. **Anomaly Detection**: Use log_detect_anomalies to find unusual patterns:
 >    - Error spikes (sudden increases in error rate)
 >    - Gaps in logging (possible outages or restarts)
 >    - Rate changes (load shifts)
 >    - New error types not seen before
 >
-> 5. **Comparison Analysis**: Use the diff_logs tool to compare "{log_path}" (target) against "{comparison_path}" (baseline). Report new errors, resolved errors, rate changes, source changes, and throughput shifts.
+> 5. **Comparison Analysis**: Use the log_diff tool to compare "{log_path}" (target) against "{comparison_path}" (baseline). Report new errors, resolved errors, rate changes, source changes, and throughput shifts.
 >
 > 6. **Timeline**: Use the timeline tool to build a chronological sequence of significant events:
 >    - When did the incident start?
 >    - What were the key events leading up to the incident?
 >    - When was it resolved (if applicable)?
 >
-> 7. **Deep Dive**: For the top 3 most significant errors, use search_logs with context_lines=5 to examine surrounding context. Look for:
+> 7. **Deep Dive**: For the top 3 most significant errors, use log_search with context_lines=5 to examine surrounding context. Look for:
 >    - What triggered each error
 >    - Whether errors cascade (one causing another)
 >    - Any recovery attempts visible in the logs
@@ -266,7 +266,7 @@ The full prompt text (with all optional sections present):
 **Example Usage Scenarios:**
 
 1. An SRE says "generate a report for the outage in /var/log/app.log, incident INC-2025-042" — the AI follows the full workflow with the incident ID in the header.
-2. A developer says "compare today's logs against yesterday's and write a report" providing both paths — the AI includes the diff_logs comparison section.
+2. A developer says "compare today's logs against yesterday's and write a report" providing both paths — the AI includes the log_diff comparison section.
 3. A team lead says "analyze /var/log/nginx/error.log and write up what happened" — the AI skips the comparison step and omits the incident ID.
 
 ---
@@ -308,7 +308,7 @@ When `log_paths` is provided, the discovery step is replaced:
 > **Discovery**: The following specific log paths have been provided: {log_paths}. Skip discovery and proceed to gathering these files.
 
 When `log_paths` is omitted:
-> **Discovery**: Use discover_remote_logs to find available log files and journal units on all target hosts. Review the results and select the most relevant logs for the investigation.
+> **Discovery**: Use log_discover_remote to find available log files and journal units on all target hosts. Review the results and select the most relevant logs for the investigation.
 
 When there is only one host (no comma in `hosts`), the cross-host steps are omitted:
 > **Cross-Host Correlation**: Only one host is being investigated — skip cross-host correlation.
@@ -321,27 +321,27 @@ The full prompt text (with all optional sections present, multiple hosts, no log
 >
 > Follow this structured investigation process:
 >
-> 1. **Discovery**: Use discover_remote_logs to find available log files and journal units on all target hosts. Review the results and select the most relevant logs for the investigation.
+> 1. **Discovery**: Use log_discover_remote to find available log files and journal units on all target hosts. Review the results and select the most relevant logs for the investigation.
 >
-> 2. **Gathering**: Use gather_remote_logs to download the selected log files and journal exports to local temporary files. Note the local paths returned — all subsequent tools operate on these local copies.
+> 2. **Gathering**: Use log_gather_remote to download the selected log files and journal exports to local temporary files. Note the local paths returned — all subsequent tools operate on these local copies.
 >
-> 3. **System Health**: Use run_remote_command to check each host's current state:
+> 3. **System Health**: Use log_run_remote_command to check each host's current state:
 >    - `uptime` — how long has the system been running? Recent reboots?
 >    - `df -h` — disk space issues?
 >    - `free -h` — memory pressure?
 >    - `dmesg | tail -20` — kernel-level issues?
 >
-> 4. **Log Summary**: Use summarize_logs on each gathered log file to establish baseline metrics: line counts, time ranges, error rates, and throughput.
+> 4. **Log Summary**: Use log_summarize on each gathered log file to establish baseline metrics: line counts, time ranges, error rates, and throughput.
 >
-> 5. **Error Analysis**: Use extract_errors on each gathered log file to identify and cluster error types. Compare error profiles across hosts.
+> 5. **Error Analysis**: Use log_extract_errors on each gathered log file to identify and cluster error types. Compare error profiles across hosts.
 >
-> 6. **Anomaly Detection**: Use detect_anomalies on each gathered log file to find error spikes, gaps, rate changes, and new error types.
+> 6. **Anomaly Detection**: Use log_detect_anomalies on each gathered log file to find error spikes, gaps, rate changes, and new error types.
 >
-> 7. **Cross-Host Correlation**: Use correlate_logs across gathered files from different hosts to find events that span multiple systems (shared request IDs, trace IDs, or timestamps).
+> 7. **Cross-Host Correlation**: Use log_correlate across gathered files from different hosts to find events that span multiple systems (shared request IDs, trace IDs, or timestamps).
 >
-> 8. **Cross-Host Comparison**: Use diff_logs to compare log files between hosts to identify divergent behaviour — errors on one host but not another, different error rates, etc.
+> 8. **Cross-Host Comparison**: Use log_diff to compare log files between hosts to identify divergent behaviour — errors on one host but not another, different error rates, etc.
 >
-> 9. **Deep Dive**: For the most significant issues found, use search_logs with context_lines=5 to examine surrounding context.
+> 9. **Deep Dive**: For the most significant issues found, use log_search with context_lines=5 to examine surrounding context.
 >
 > 10. **Report**: Compile all findings into a structured Markdown report:
 >     - **Incident Report: {incident_id}** (header, or generic if no ID provided)

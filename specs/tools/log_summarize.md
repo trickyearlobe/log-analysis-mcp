@@ -1,4 +1,4 @@
-# Tool: `summarize_logs`
+# Tool: `log_summarize`
 
 **Description (shown to LLM):**
 > Generate a statistical summary of a log file including line counts, severity level distribution, top error messages, most active sources, and throughput metrics. Provides a quick overview of the file's contents without reading every line.
@@ -101,7 +101,7 @@ func handleSummarizeLogs(ctx context.Context, req *mcp.CallToolRequest, input Su
 
 ```go
 mcp.AddTool(server, &mcp.Tool{
-    Name:        "summarize_logs",
+    Name:        "log_summarize",
     Description: "Generate a statistical summary of a log file including line counts, severity level distribution, top error messages, most active sources, and throughput metrics. Provides a quick overview of the file's contents without reading every line.",
 }, handleSummarizeLogs)
 ```
@@ -160,4 +160,4 @@ mcp.AddTool(server, &mcp.Tool{
 
 ## Example Usage Scenario
 
-An AI assistant receives a log file and wants to quickly understand what's in it before diving deeper. It calls `summarize_logs` to get an overview, then uses the top errors and level distribution to decide where to investigate next.
+An AI assistant receives a log file and wants to quickly understand what's in it before diving deeper. It calls `log_summarize` to get an overview, then uses the top errors and level distribution to decide where to investigate next.

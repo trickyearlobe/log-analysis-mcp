@@ -1,4 +1,4 @@
-# Tool: `discover_remote_logs`
+# Tool: `log_discover_remote`
 
 **Description (shown to LLM):**
 > Discover log files and systemd journal units on remote hosts via SSH. Scans
@@ -133,7 +133,7 @@ func handleDiscoverRemoteLogs(ctx context.Context, req *mcp.CallToolRequest, inp
 
 ```go
 mcp.AddTool(server, &mcp.Tool{
-    Name:        "discover_remote_logs",
+    Name:        "log_discover_remote",
     Description: "Discover log files and systemd journal units on remote hosts via SSH. Scans standard log locations by default, with optional custom search paths and commands.",
 }, handleDiscoverRemoteLogs)
 ```
@@ -172,7 +172,7 @@ other hosts from being scanned.
 ## Usage Scenario
 
 An AI assistant is asked to investigate issues on a fleet of servers. It first
-calls `discover_remote_logs` to inventory what log files and journal units
+calls `log_discover_remote` to inventory what log files and journal units
 exist on each host. Using the results, it decides which logs are relevant (e.g.
 nginx access logs, application logs) and passes those paths to
-`gather_remote_logs` to download them for local analysis.
+`log_gather_remote` to download them for local analysis.

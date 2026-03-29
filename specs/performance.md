@@ -21,14 +21,14 @@ See `specs/fileutil.md` for streaming, tail, and concurrency implementation patt
 
 | Tool              | Default Page Size | Maximum Page Size |
 | ----------------- | ----------------- | ----------------- |
-| `read_logs`       | 100 lines         | 1000 lines        |
-| `search_logs`     | 50 matches        | 500 matches       |
-| `parse_logs`      | 50 records        | 500 records       |
-| `filter_logs`     | 100 entries       | 1000 entries      |
-| `tail_logs`       | 50 lines          | 1000 lines        |
-| `timeline`        | 100 events        | 500 events        |
-| `extract_errors`  | 20 clusters       | 100 clusters      |
-| `correlate_logs`  | 50 groups         | 200 groups        |
+| `log_read`       | 100 lines         | 1000 lines        |
+| `log_search`     | 50 matches        | 500 matches       |
+| `log_parse`      | 50 records        | 500 records       |
+| `log_filter`     | 100 entries       | 1000 entries      |
+| `log_tail`       | 50 lines          | 1000 lines        |
+| `log_timeline`        | 100 events        | 500 events        |
+| `log_extract_errors`  | 20 clusters       | 100 clusters      |
+| `log_correlate`  | 50 groups         | 200 groups        |
 
 ## Output Size Limits
 
@@ -41,12 +41,12 @@ To avoid overwhelming the LLM context window, tool outputs are capped at approxi
 
 ## Statistical Operations
 
-Statistical tools (`summarize_logs`, `detect_anomalies`) use single-pass streaming algorithms. A single read through the file accumulates all required metrics — line counts, level-frequency counters, min/max timestamps, per-minute throughput buckets, and error-message frequencies. Frequency counters are pruned periodically if they exceed 10,000 entries to bound memory usage. Anomaly detection applies sliding-window rate analysis over the time-bucketed counts gathered during the same pass.
+Statistical tools (`log_summarize`, `log_detect_anomalies`) use single-pass streaming algorithms. A single read through the file accumulates all required metrics — line counts, level-frequency counters, min/max timestamps, per-minute throughput buckets, and error-message frequencies. Frequency counters are pruned periodically if they exceed 10,000 entries to bound memory usage. Anomaly detection applies sliding-window rate analysis over the time-bucketed counts gathered during the same pass.
 
-## `tail_logs` Performance
+## `log_tail` Performance
 
 Tail reading must be O(N) in the number of requested lines, not in total file size. The implementation seeks to the end of the file and reads backwards in chunks rather than scanning from the beginning.
 
 ## Concurrent Operations
 
-For tools that process multiple files (e.g., `correlate_logs`), files are read concurrently with support for cancellation.
+For tools that process multiple files (e.g., `log_correlate`), files are read concurrently with support for cancellation.

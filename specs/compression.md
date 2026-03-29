@@ -1,7 +1,7 @@
 # Compressed File Support — Behavioural Specification
 
 Transparent decompression of compressed log files. All existing tools work with
-compressed files without changes to their code. A `decompress_file` tool allows
+compressed files without changes to their code. A `log_decompress` tool allows
 the LLM to extract a compressed file to a temporary plain file for faster
 multi-tool workflows.
 
@@ -136,9 +136,9 @@ acceptable for single operations because:
 - Users who need fast tail access should use uncompressed files.
 
 For multi-tool workflows (investigate an error, health check, etc.), the LLM
-should call `decompress_file` first, then pass the temporary plain file path
+should call `log_decompress` first, then pass the temporary plain file path
 to all subsequent tools. This avoids repeated decompression and restores O(N)
-`TailLines` performance. See the `decompress_file` tool section below.
+`TailLines` performance. See the `log_decompress` tool section below.
 
 ---
 
@@ -257,7 +257,7 @@ internal/fileutil/
 
 ---
 
-## `decompress_file` Tool
+## `log_decompress` Tool
 
 ### Purpose
 
@@ -267,7 +267,7 @@ path with all other tools, getting full seekable performance (O(N) tail, no
 repeated decompression per tool call).
 
 The LLM decides when to use this — it is never automatic. For a single
-`read_logs` call on a `.gz` file, transparent `OpenReader` is fine. For a
+`log_read` call on a `.gz` file, transparent `OpenReader` is fine. For a
 multi-step investigation, the LLM should decompress first.
 
 ### Inputs
@@ -324,13 +324,13 @@ files are removed. Individual temp files can also be removed explicitly if a
 
 ### Tool Registration
 
-Registered as `decompress_file` in `internal/tools/decompress_file.go`.
+Registered as `log_decompress` in `internal/tools/log_decompress.go`.
 One file, one test file beside it, same as all other tools.
 
 ### Server Prompt Guidance
 
 The server's `Instructions` field (sent to clients during MCP initialisation)
 should mention that compressed files work transparently but that
-`decompress_file` is recommended before multi-tool workflows on large
+`log_decompress` is recommended before multi-tool workflows on large
 compressed files. This guides the LLM to make the optimisation decision
 without requiring it.

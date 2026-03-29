@@ -17,7 +17,7 @@ const summarizePageSize = 1000
 // summarizeTopN is the maximum number of top sources/errors to return.
 const summarizeTopN = 10
 
-// SummarizeLogsInput defines the parameters for the summarize_logs tool.
+// SummarizeLogsInput defines the parameters for the log_summarize tool.
 type SummarizeLogsInput struct {
 	Path       string `json:"path"                 jsonschema:"Path to the log file"`
 	SampleSize int    `json:"sample_size,omitempty" jsonschema:"Number of lines to sample; 0 means analyze all lines"`
@@ -71,7 +71,7 @@ type ThroughputInfo struct {
 	QuietestMinute MinuteStats `json:"quietest_minute"`
 }
 
-// SummarizeLogsOutput is the structured result of the summarize_logs tool.
+// SummarizeLogsOutput is the structured result of the log_summarize tool.
 type SummarizeLogsOutput struct {
 	FileInfo          FileInfoSummary       `json:"file_info"`
 	DetectedFormat    string                `json:"detected_format"`
@@ -128,19 +128,19 @@ func isSummarizeErrorLevel(level *types.LogLevel) bool {
 func RunSummarizeLogs(input SummarizeLogsInput) (SummarizeLogsOutput, error) {
 	// Validate file access.
 	if err := CheckFileAccess(input.Path); err != nil {
-		return SummarizeLogsOutput{}, fmt.Errorf("summarize_logs: %w", err)
+		return SummarizeLogsOutput{}, fmt.Errorf("log_summarize: %w", err)
 	}
 
 	// Get file size.
 	sizeBytes, err := FileSize(input.Path)
 	if err != nil {
-		return SummarizeLogsOutput{}, fmt.Errorf("summarize_logs: %w", err)
+		return SummarizeLogsOutput{}, fmt.Errorf("log_summarize: %w", err)
 	}
 
 	// Sample lines for format detection.
 	sampleLines, err := SampleLines(input.Path, sampleLineCount)
 	if err != nil {
-		return SummarizeLogsOutput{}, fmt.Errorf("summarize_logs: %w", err)
+		return SummarizeLogsOutput{}, fmt.Errorf("log_summarize: %w", err)
 	}
 
 	// Detect format and obtain parser.
@@ -174,7 +174,7 @@ func RunSummarizeLogs(input SummarizeLogsInput) (SummarizeLogsOutput, error) {
 
 		result, err := fileutil.ReadLines(input.Path, startLine, pageSize)
 		if err != nil {
-			return SummarizeLogsOutput{}, fmt.Errorf("summarize_logs: read at line %d: %w", startLine, err)
+			return SummarizeLogsOutput{}, fmt.Errorf("log_summarize: read at line %d: %w", startLine, err)
 		}
 
 		if len(result.Lines) == 0 {

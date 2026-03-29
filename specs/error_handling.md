@@ -17,7 +17,7 @@ There are two categories of errors:
 | `FILE_NOT_FOUND`      | File does not exist at given path   | `File not found: /path/to/file.log — verify the path is correct and accessible`  |
 | `PERMISSION_DENIED`   | Insufficient read permissions       | `Permission denied: /path/to/file.log — check file permissions (current user: X)` |
 | `BINARY_FILE`         | File detected as binary (non-text)  | `Binary file detected: /path/to/file — this tool only supports text log files`    |
-| `FILE_TOO_LARGE`      | File exceeds processing limits      | `File is very large (X GB). Use pagination (read_logs with start_line/num_lines) or sampling (summarize_logs with sample_size)` |
+| `FILE_TOO_LARGE`      | File exceeds processing limits      | `File is very large (X GB). Use pagination (log_read with start_line/num_lines) or sampling (log_summarize with sample_size)` |
 | `INVALID_REGEX`       | Invalid regex pattern provided      | `Invalid regular expression: "pattern" — error details`                           |
 | `INVALID_TIMESTAMP`   | Unparseable timestamp in filter     | `Invalid timestamp format: "value" — use ISO 8601 format (e.g., 2025-01-15T10:30:00Z)` |
 | `PARSE_ERROR`         | Log format could not be determined  | `Could not detect log format. Try specifying format_hint parameter.`              |

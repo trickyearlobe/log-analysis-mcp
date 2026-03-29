@@ -11,7 +11,7 @@ import (
 // searchPageSize is the number of lines to read per streaming page.
 const searchPageSize = 1000
 
-// SearchLogsInput defines the parameters for the search_logs tool.
+// SearchLogsInput defines the parameters for the log_search tool.
 type SearchLogsInput struct {
 	Path          string `json:"path"                    jsonschema:"Path to the log file to search"`
 	Pattern       string `json:"pattern"                 jsonschema:"Search pattern (plain text or regex)"`
@@ -21,7 +21,7 @@ type SearchLogsInput struct {
 	MaxResults    int    `json:"max_results,omitempty"    jsonschema:"Maximum number of matches to return (max 500)"`
 }
 
-// SearchLogsOutput is the structured result of the search_logs tool.
+// SearchLogsOutput is the structured result of the log_search tool.
 type SearchLogsOutput struct {
 	Matches       []types.SearchMatch `json:"matches"`
 	TotalMatches  int                 `json:"total_matches"`
@@ -40,18 +40,18 @@ func RunSearchLogs(input SearchLogsInput) (SearchLogsOutput, error) {
 
 	// Validate file access (exists, readable, not binary).
 	if err := CheckFileAccess(input.Path); err != nil {
-		return SearchLogsOutput{}, fmt.Errorf("search_logs: %w", err)
+		return SearchLogsOutput{}, fmt.Errorf("log_search: %w", err)
 	}
 
 	// Compile the search pattern into a regex.
 	re, patternUsed, err := CompilePattern(input.Pattern, input.IsRegex, input.CaseSensitive)
 	if err != nil {
-		return SearchLogsOutput{}, fmt.Errorf("search_logs: %w", err)
+		return SearchLogsOutput{}, fmt.Errorf("log_search: %w", err)
 	}
 
 	matches, totalMatches, searchedLines, err := streamSearch(input.Path, re, input.ContextLines, input.MaxResults)
 	if err != nil {
-		return SearchLogsOutput{}, fmt.Errorf("search_logs: %w", err)
+		return SearchLogsOutput{}, fmt.Errorf("log_search: %w", err)
 	}
 
 	if matches == nil {

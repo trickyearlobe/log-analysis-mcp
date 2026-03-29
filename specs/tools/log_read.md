@@ -1,4 +1,4 @@
-# Tool: `read_logs`
+# Tool: `log_read`
 
 **Description (shown to LLM):**
 > Read a log file with pagination support. Returns lines from the specified file along with metadata about file size and total line count. Use start_line and num_lines to paginate through large files.
@@ -88,7 +88,7 @@ func handleReadLogs(ctx context.Context, req *mcp.CallToolRequest, input ReadLog
 
 ```go
 mcp.AddTool(server, &mcp.Tool{
-    Name:        "read_logs",
+    Name:        "log_read",
     Description: "Read a log file with pagination support. Returns lines from the specified file along with metadata about file size and total line count. Use start_line and num_lines to paginate through large files.",
 }, handleReadLogs)
 ```
@@ -97,4 +97,4 @@ mcp.AddTool(server, &mcp.Tool{
 
 ## Usage Scenario
 
-An AI assistant is asked to look at a log file. It first calls `read_logs` with default parameters to see the beginning of the file, then uses `start_line` to page forward to areas of interest identified from the initial read.
+An AI assistant is asked to look at a log file. It first calls `log_read` with default parameters to see the beginning of the file, then uses `start_line` to page forward to areas of interest identified from the initial read.

@@ -1,4 +1,4 @@
-# Tool: `filter_logs`
+# Tool: `log_filter`
 
 **Description (shown to LLM):**
 > Filter log entries by severity level, time range, source component, or message content. Parses the log file and returns only entries matching all specified criteria. Multiple filters are combined with AND logic.
@@ -109,7 +109,7 @@ func handleFilterLogs(ctx context.Context, req *mcp.CallToolRequest, input Filte
 
 ```go
 mcp.AddTool(server, &mcp.Tool{
-    Name:        "filter_logs",
+    Name:        "log_filter",
     Description: "Filter log entries by severity level, time range, source component, or message content. Parses the log file and returns only entries matching all specified criteria. Multiple filters are combined with AND logic.",
 }, handleFilterLogs)
 ```

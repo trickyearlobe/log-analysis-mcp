@@ -12,12 +12,12 @@ import (
 	"github.com/trickyearlobe/log-analysis-mcp/internal/fileutil"
 )
 
-// DecompressFileInput defines the parameters for the decompress_file tool.
+// DecompressFileInput defines the parameters for the log_decompress tool.
 type DecompressFileInput struct {
 	Path string `json:"path" jsonschema:"Path to the compressed log file (.gz, .bz2, .zip)"`
 }
 
-// DecompressFileOutput is the structured result of the decompress_file tool.
+// DecompressFileOutput is the structured result of the log_decompress tool.
 type DecompressFileOutput struct {
 	TempPath         string `json:"temp_path"`
 	OriginalPath     string `json:"original_path"`
@@ -58,7 +58,7 @@ func RunDecompressFile(input DecompressFileInput) (DecompressFileOutput, error) 
 		if os.IsNotExist(err) {
 			return DecompressFileOutput{}, fmt.Errorf("FILE_NOT_FOUND: file not found: %s — verify the path is correct and accessible", input.Path)
 		}
-		return DecompressFileOutput{}, fmt.Errorf("decompress_file: stat %s: %w", input.Path, err)
+		return DecompressFileOutput{}, fmt.Errorf("log_decompress: stat %s: %w", input.Path, err)
 	}
 	if info.IsDir() {
 		return DecompressFileOutput{}, fmt.Errorf("INVALID_INPUT: path is a directory, not a file: %s", input.Path)

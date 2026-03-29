@@ -17,7 +17,7 @@ const extractErrorsPageSize = 1000
 // maxSampleMessages is the maximum number of sample messages kept per cluster.
 const maxSampleMessages = 3
 
-// ExtractErrorsInput defines the parameters for the extract_errors tool.
+// ExtractErrorsInput defines the parameters for the log_extract_errors tool.
 type ExtractErrorsInput struct {
 	Path               string `json:"path"                           jsonschema:"Path to the log file"`
 	IncludeStackTraces bool   `json:"include_stack_traces,omitempty" jsonschema:"Capture multiline stack traces with errors"`
@@ -30,7 +30,7 @@ type ErrorRate struct {
 	PercentageOfAllLines float64 `json:"percentage_of_all_lines"`
 }
 
-// ExtractErrorsOutput is the structured result of the extract_errors tool.
+// ExtractErrorsOutput is the structured result of the log_extract_errors tool.
 type ExtractErrorsOutput struct {
 	Clusters       []types.ErrorCluster `json:"clusters"`
 	TotalErrors    int                  `json:"total_errors"`
@@ -92,13 +92,13 @@ func RunExtractErrors(input ExtractErrorsInput) (ExtractErrorsOutput, error) {
 
 	// Validate file access.
 	if err := CheckFileAccess(input.Path); err != nil {
-		return ExtractErrorsOutput{}, fmt.Errorf("extract_errors: %w", err)
+		return ExtractErrorsOutput{}, fmt.Errorf("log_extract_errors: %w", err)
 	}
 
 	// Sample lines and auto-detect format.
 	sampleLines, err := SampleLines(input.Path, sampleLineCount)
 	if err != nil {
-		return ExtractErrorsOutput{}, fmt.Errorf("extract_errors: %w", err)
+		return ExtractErrorsOutput{}, fmt.Errorf("log_extract_errors: %w", err)
 	}
 
 	_, parser := parsers.AutoDetectWithHint(sampleLines, "")
@@ -121,7 +121,7 @@ func RunExtractErrors(input ExtractErrorsInput) (ExtractErrorsOutput, error) {
 	for {
 		result, err := fileutil.ReadLines(input.Path, startLine, extractErrorsPageSize)
 		if err != nil {
-			return ExtractErrorsOutput{}, fmt.Errorf("extract_errors: read at line %d: %w", startLine, err)
+			return ExtractErrorsOutput{}, fmt.Errorf("log_extract_errors: read at line %d: %w", startLine, err)
 		}
 
 		totalLines += len(result.Lines)

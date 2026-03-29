@@ -1,4 +1,4 @@
-# Tool: `parse_logs`
+# Tool: `log_parse`
 
 **Description (shown to LLM):**
 > Auto-detect the log format and parse log lines into structured records with fields like timestamp, level, source, and message. Supports syslog (RFC 3164/5424), Apache/Nginx access logs, and JSON structured logs.
@@ -113,7 +113,7 @@ func handleParseLogs(ctx context.Context, req *mcp.CallToolRequest, input ParseL
 
 ```go
 mcp.AddTool(server, &mcp.Tool{
-    Name:        "parse_logs",
+    Name:        "log_parse",
     Description: "Auto-detect the log format and parse log lines into structured records with fields like timestamp, level, source, and message. Supports syslog (RFC 3164/5424), Apache/Nginx access logs, and JSON structured logs.",
 }, handleParseLogs)
 ```
@@ -122,4 +122,4 @@ mcp.AddTool(server, &mcp.Tool{
 
 ## Usage Scenario
 
-An AI assistant is given an unfamiliar log file. It calls `parse_logs` with `format_hint: "auto"` on the first 50 lines to understand the structure, then uses the detected format information to make better use of `filter_logs` and other tools.
+An AI assistant is given an unfamiliar log file. It calls `log_parse` with `format_hint: "auto"` on the first 50 lines to understand the structure, then uses the detected format information to make better use of `log_filter` and other tools.

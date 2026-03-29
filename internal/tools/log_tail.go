@@ -13,13 +13,13 @@ type LogLine struct {
 	Content    string `json:"content"`
 }
 
-// TailLogsInput is the input schema for the tail_logs tool.
+// TailLogsInput is the input schema for the log_tail tool.
 type TailLogsInput struct {
 	Path     string `json:"path"                jsonschema:"Path to the log file"`
 	NumLines int    `json:"num_lines,omitempty" jsonschema:"Number of lines to read from the end of the file (max 1000)"`
 }
 
-// TailLogsOutput is the result of a tail_logs invocation.
+// TailLogsOutput is the result of a log_tail invocation.
 type TailLogsOutput struct {
 	Lines           []LogLine `json:"lines"`
 	TotalLines      int       `json:"total_lines"`
@@ -33,12 +33,12 @@ func RunTailLogs(input TailLogsInput) (TailLogsOutput, error) {
 	numLines = ClampInt(numLines, 1, 1000)
 
 	if err := CheckFileAccess(input.Path); err != nil {
-		return TailLogsOutput{}, fmt.Errorf("tail_logs: %w", err)
+		return TailLogsOutput{}, fmt.Errorf("log_tail: %w", err)
 	}
 
 	result, err := fileutil.TailLines(input.Path, numLines)
 	if err != nil {
-		return TailLogsOutput{}, fmt.Errorf("tail_logs: %w", err)
+		return TailLogsOutput{}, fmt.Errorf("log_tail: %w", err)
 	}
 
 	lines := make([]LogLine, len(result.Lines))

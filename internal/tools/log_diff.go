@@ -169,7 +169,7 @@ func inTimeWindow(entry *types.ParsedLogEntry, after, before string) bool {
 // RunDiffLogs compares two log files or two time periods and returns structured differences.
 func RunDiffLogs(input DiffLogsInput) (DiffLogsOutput, error) {
 	if input.BasePath == "" {
-		return DiffLogsOutput{}, fmt.Errorf("diff_logs: INVALID_INPUT: base_path is required")
+		return DiffLogsOutput{}, fmt.Errorf("log_diff: INVALID_INPUT: base_path is required")
 	}
 
 	singleFileMode := input.TargetPath == ""
@@ -182,10 +182,10 @@ func RunDiffLogs(input DiffLogsInput) (DiffLogsOutput, error) {
 			input.TargetAfter != "" && input.TargetBefore != ""
 
 		if hasAnyTimeParam && !hasAllTimeParams {
-			return DiffLogsOutput{}, fmt.Errorf("diff_logs: INVALID_INPUT: single-file mode requires all four time range parameters (base_after, base_before, target_after, target_before)")
+			return DiffLogsOutput{}, fmt.Errorf("log_diff: INVALID_INPUT: single-file mode requires all four time range parameters (base_after, base_before, target_after, target_before)")
 		}
 		if !hasAnyTimeParam {
-			return DiffLogsOutput{}, fmt.Errorf("diff_logs: INVALID_INPUT: single-file mode requires all four time range parameters (base_after, base_before, target_after, target_before)")
+			return DiffLogsOutput{}, fmt.Errorf("log_diff: INVALID_INPUT: single-file mode requires all four time range parameters (base_after, base_before, target_after, target_before)")
 		}
 	}
 
@@ -203,31 +203,31 @@ func RunDiffLogs(input DiffLogsInput) (DiffLogsOutput, error) {
 			continue
 		}
 		if _, err := parseTimestamp(param.value); err != nil {
-			return DiffLogsOutput{}, fmt.Errorf("diff_logs: INVALID_INPUT: invalid timestamp for %s: %s", param.name, param.value)
+			return DiffLogsOutput{}, fmt.Errorf("log_diff: INVALID_INPUT: invalid timestamp for %s: %s", param.name, param.value)
 		}
 	}
 
 	// Validate non-overlapping time ranges in single-file mode.
 	if singleFileMode && input.BaseBefore != "" && input.TargetAfter != "" {
 		if input.BaseBefore > input.TargetAfter {
-			return DiffLogsOutput{}, fmt.Errorf("diff_logs: INVALID_INPUT: time ranges must not overlap: base_before (%s) must be <= target_after (%s)", input.BaseBefore, input.TargetAfter)
+			return DiffLogsOutput{}, fmt.Errorf("log_diff: INVALID_INPUT: time ranges must not overlap: base_before (%s) must be <= target_after (%s)", input.BaseBefore, input.TargetAfter)
 		}
 	}
 
 	// Check file access.
 	if err := CheckFileAccess(input.BasePath); err != nil {
-		return DiffLogsOutput{}, fmt.Errorf("diff_logs: %w", err)
+		return DiffLogsOutput{}, fmt.Errorf("log_diff: %w", err)
 	}
 	if !singleFileMode {
 		if err := CheckFileAccess(input.TargetPath); err != nil {
-			return DiffLogsOutput{}, fmt.Errorf("diff_logs: %w", err)
+			return DiffLogsOutput{}, fmt.Errorf("log_diff: %w", err)
 		}
 	}
 
 	// Detect format from base file.
 	sampleLines, err := SampleLines(input.BasePath, sampleLineCount)
 	if err != nil {
-		return DiffLogsOutput{}, fmt.Errorf("diff_logs: %w", err)
+		return DiffLogsOutput{}, fmt.Errorf("log_diff: %w", err)
 	}
 	_, parser := parsers.AutoDetectWithHint(sampleLines, "")
 
@@ -274,7 +274,7 @@ func RunDiffLogs(input DiffLogsInput) (DiffLogsOutput, error) {
 		if input.TargetPath != input.BasePath {
 			targetSampleLines, sErr := SampleLines(input.TargetPath, sampleLineCount)
 			if sErr != nil {
-				return DiffLogsOutput{}, fmt.Errorf("diff_logs: %w", sErr)
+				return DiffLogsOutput{}, fmt.Errorf("log_diff: %w", sErr)
 			}
 			_, targetParser = parsers.AutoDetectWithHint(targetSampleLines, "")
 		}
@@ -306,7 +306,7 @@ func scanFile(path string, parser parsers.Parser, cb entryCallback) error {
 	for {
 		result, err := fileutil.ReadLines(path, startLine, diffLogsPageSize)
 		if err != nil {
-			return fmt.Errorf("diff_logs: read %s at line %d: %w", path, startLine, err)
+			return fmt.Errorf("log_diff: read %s at line %d: %w", path, startLine, err)
 		}
 
 		for _, lr := range result.Lines {

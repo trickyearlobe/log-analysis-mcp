@@ -8,7 +8,7 @@ import (
 	"github.com/trickyearlobe/log-analysis-mcp/internal/types"
 )
 
-// ParseLogsInput defines the parameters for the parse_logs tool.
+// ParseLogsInput defines the parameters for the log_parse tool.
 type ParseLogsInput struct {
 	Path       string `json:"path"                 jsonschema:"Path to the log file"`
 	StartLine  int    `json:"start_line,omitempty"  jsonschema:"Line number to start parsing from (1-based)"`
@@ -34,7 +34,7 @@ type ParseError struct {
 	Error      string `json:"error"`
 }
 
-// ParseLogsOutput is the structured result of the parse_logs tool.
+// ParseLogsOutput is the structured result of the log_parse tool.
 type ParseLogsOutput struct {
 	DetectedFormat string         `json:"detected_format"`
 	Confidence     float64        `json:"confidence"`
@@ -54,13 +54,13 @@ func RunParseLogs(input ParseLogsInput) (ParseLogsOutput, error) {
 
 	// Validate file access.
 	if err := CheckFileAccess(input.Path); err != nil {
-		return ParseLogsOutput{}, fmt.Errorf("parse_logs: %w", err)
+		return ParseLogsOutput{}, fmt.Errorf("log_parse: %w", err)
 	}
 
 	// Sample lines for format detection.
 	sampleLines, err := SampleLines(input.Path, sampleLineCount)
 	if err != nil {
-		return ParseLogsOutput{}, fmt.Errorf("parse_logs: %w", err)
+		return ParseLogsOutput{}, fmt.Errorf("log_parse: %w", err)
 	}
 
 	// Detect format and obtain parser.
@@ -69,7 +69,7 @@ func RunParseLogs(input ParseLogsInput) (ParseLogsOutput, error) {
 	// Read the requested range of lines.
 	result, err := fileutil.ReadLines(input.Path, input.StartLine, input.NumLines)
 	if err != nil {
-		return ParseLogsOutput{}, fmt.Errorf("parse_logs: read lines: %w", err)
+		return ParseLogsOutput{}, fmt.Errorf("log_parse: read lines: %w", err)
 	}
 
 	records := make([]ParsedRecord, 0, len(result.Lines))

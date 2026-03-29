@@ -72,7 +72,7 @@ require (
 
 ### macOS Firewall (Remote SSH Tools)
 
-The remote SSH tools (`run_remote_command`, `discover_remote_logs`, `gather_remote_logs`)
+The remote SSH tools (`log_run_remote_command`, `log_discover_remote`, `log_gather_remote`)
 open TCP connections from the Go binary. macOS Application Firewall blocks outbound
 connections from locally-built binaries while allowing signed system binaries like
 `/usr/bin/ssh`. The symptom is `connect: no route to host` even though `ssh <host>`

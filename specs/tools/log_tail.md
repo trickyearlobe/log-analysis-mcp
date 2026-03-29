@@ -1,4 +1,4 @@
-# Tool: `tail_logs`
+# Tool: `log_tail`
 
 ## Description
 
@@ -41,7 +41,7 @@ type LogLine struct {
     Content    string `json:"content"`
 }
 
-// TailLogsOutput is the top-level result returned by the tail_logs tool.
+// TailLogsOutput is the top-level result returned by the log_tail tool.
 type TailLogsOutput struct {
     Lines           []LogLine `json:"lines"`
     TotalLines      int       `json:"total_lines"`
@@ -71,7 +71,7 @@ func handleTailLogs(ctx context.Context, req *mcp.CallToolRequest, input TailLog
 
 ```go
 mcp.AddTool(server, &mcp.Tool{
-    Name:        "tail_logs",
+    Name:        "log_tail",
     Description: "Read the last N lines of a log file (most recent entries). Equivalent to the Unix tail command. Useful for checking the latest activity in a log file.",
 }, handleTailLogs)
 ```
@@ -96,4 +96,4 @@ mcp.AddTool(server, &mcp.Tool{
 
 ## Example Usage Scenario
 
-An AI assistant is asked "what's happening in the logs right now?" and uses `tail_logs` to quickly see the most recent entries without scanning the entire file.
+An AI assistant is asked "what's happening in the logs right now?" and uses `log_tail` to quickly see the most recent entries without scanning the entire file.
