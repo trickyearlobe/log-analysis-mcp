@@ -497,7 +497,7 @@ func TestSupportedIDEsReturnsEntries(t *testing.T) {
 		names[ide.Name] = true
 	}
 
-	for _, want := range []string{"Claude Desktop", "VS Code", "Cursor", "Windsurf", "Zed"} {
+	for _, want := range []string{"Claude Desktop", "VS Code", "Cursor", "Windsurf", "Zed", "Copilot CLI"} {
 		if !names[want] {
 			t.Errorf("missing IDE: %s", want)
 		}
@@ -775,6 +775,106 @@ func TestUpsertServerZedUpdateAddsArgsAndEnv(t *testing.T) {
 	}
 	if entry["env"] == nil {
 		t.Error("after update, Zed entry still missing 'env' field")
+	}
+}
+
+func TestUpsertServerCopilotEntryIncludesRequiredFields(t *testing.T) {
+	dir := t.TempDir()
+	copilotDir := filepath.Join(dir, ".copilot")
+	if err := os.MkdirAll(copilotDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(copilotDir, "mcp-config.json")
+
+	action, err := UpsertServer(configPath, "mcpServers", "test-server", "/usr/local/bin/test")
+	if err != nil {
+		t.Fatalf("UpsertServer: %v", err)
+	}
+	if action != ActionInstalled {
+		t.Errorf("action = %q, want %q", action, ActionInstalled)
+	}
+
+	config := readJSON(t, configPath)
+	servers := config["mcpServers"].(map[string]any)
+	entry := servers["test-server"].(map[string]any)
+
+	if entry["command"] != "/usr/local/bin/test" {
+		t.Errorf("command = %v, want %q", entry["command"], "/usr/local/bin/test")
+	}
+	if entry["type"] != "local" {
+		t.Errorf("type = %v, want %q", entry["type"], "local")
+	}
+	if entry["args"] == nil {
+		t.Error("Copilot entry missing 'args' field")
+	}
+	if entry["env"] == nil {
+		t.Error("Copilot entry missing 'env' field")
+	}
+	if entry["tools"] == nil {
+		t.Error("Copilot entry missing 'tools' field")
+	}
+}
+
+func TestUpsertServerCopilotUpdateAddsRequiredFields(t *testing.T) {
+	dir := t.TempDir()
+	copilotDir := filepath.Join(dir, ".copilot")
+	if err := os.MkdirAll(copilotDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(copilotDir, "mcp-config.json")
+
+	// Simulate an old install that only wrote {"command": "..."} without type/tools.
+	initial := map[string]any{
+		"mcpServers": map[string]any{
+			"test-server": map[string]any{
+				"command": "/usr/local/bin/test",
+			},
+		},
+	}
+	writeJSON(t, configPath, initial)
+
+	// Re-install with the same binary path — should detect missing fields and update.
+	action, err := UpsertServer(configPath, "mcpServers", "test-server", "/usr/local/bin/test")
+	if err != nil {
+		t.Fatalf("UpsertServer: %v", err)
+	}
+	if action != ActionUpdated {
+		t.Errorf("action = %q, want %q (should update to add missing type/tools)", action, ActionUpdated)
+	}
+
+	config := readJSON(t, configPath)
+	servers := config["mcpServers"].(map[string]any)
+	entry := servers["test-server"].(map[string]any)
+
+	if entry["type"] != "local" {
+		t.Errorf("after update, type = %v, want %q", entry["type"], "local")
+	}
+	if entry["tools"] == nil {
+		t.Error("after update, Copilot entry still missing 'tools' field")
+	}
+}
+
+func TestUpsertServerNonCopilotMcpServersOmitsCopilotFields(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.json")
+
+	action, err := UpsertServer(configPath, "mcpServers", "test-server", "/usr/local/bin/test")
+	if err != nil {
+		t.Fatalf("UpsertServer: %v", err)
+	}
+	if action != ActionInstalled {
+		t.Errorf("action = %q, want %q", action, ActionInstalled)
+	}
+
+	config := readJSON(t, configPath)
+	servers := config["mcpServers"].(map[string]any)
+	entry := servers["test-server"].(map[string]any)
+
+	if _, ok := entry["type"]; ok {
+		t.Error("non-Copilot mcpServers entry should NOT have 'type' field")
+	}
+	if _, ok := entry["tools"]; ok {
+		t.Error("non-Copilot mcpServers entry should NOT have 'tools' field")
 	}
 }
 

@@ -51,6 +51,14 @@ func UpsertServer(configPath, topLevelKey, serverName, binaryPath string) (Actio
 		entry["env"] = map[string]any{}
 	}
 
+	// Copilot CLI requires type, args, env, and tools fields.
+	if strings.Contains(configPath, ".copilot") {
+		entry["type"] = "local"
+		entry["args"] = []any{}
+		entry["env"] = map[string]any{}
+		entry["tools"] = []any{"*"}
+	}
+
 	existing, hasExisting := servers[serverName]
 	if hasExisting {
 		existingMap, ok := existing.(map[string]any)

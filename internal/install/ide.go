@@ -48,6 +48,11 @@ func SupportedIDEs() []IDE {
 			ConfigPath:  filepath.Join(home, ".config", "zed", "settings.json"),
 			TopLevelKey: "context_servers",
 		},
+		{
+			Name:        "Copilot CLI",
+			ConfigPath:  filepath.Join(home, ".copilot", "mcp-config.json"),
+			TopLevelKey: "mcpServers",
+		},
 	}
 
 	// Claude Desktop path varies by OS
