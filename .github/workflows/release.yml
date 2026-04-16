@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - run: go test -race ./...
+      - run: go vet ./...
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, windows]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Extract version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+
+      - name: Set binary name
+        id: binary
+        run: |
+          NAME="log-analysis-mcp-${{ matrix.goos }}-${{ matrix.goarch }}"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            NAME="${NAME}.exe"
+          fi
+          echo "name=${NAME}" >> $GITHUB_OUTPUT
+
+      - name: Build
+        run: >
+          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }}
+          go build
+          -ldflags "-s -w -X main.version=${{ env.VERSION }}"
+          -o ${{ steps.binary.outputs.name }}
+          ./cmd/log-analysis-mcp
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.binary.outputs.name }}
+          path: ${{ steps.binary.outputs.name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          find . -type f ! -name checksums.txt -exec sha256sum {} + | sed 's|  \./[^/]*/|  |' > checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: dist/**/*

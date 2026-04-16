@@ -23,10 +23,10 @@ go test -race ./...
 
 ```makefile
 BINARY_NAME := log-analysis-mcp
-VERSION := 1.0.0
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-s -w -X main.version=$(VERSION)"
 
-.PHONY: build test install clean lint docker run
+.PHONY: build test install clean lint docker run version release-patch release-minor release-major
 
 build:
 	go build $(LDFLAGS) -o bin/$(BINARY_NAME) ./cmd/log-analysis-mcp
@@ -45,7 +45,7 @@ install:
 	go install $(LDFLAGS) ./cmd/log-analysis-mcp
 
 clean:
-	rm -f $(BINARY_NAME) coverage.out coverage.html
+	rm -rf bin/ coverage.out coverage.html
 
 lint:
 	go vet ./...
@@ -57,6 +57,30 @@ docker:
 run:
 	go run ./cmd/log-analysis-mcp
 ```
+
+### Version and Release Targets
+
+Version is derived from git tags via `git describe --tags`. Semver tags (`v*.*.*`) are the single source of truth.
+
+| Target | Description |
+|--------|-------------|
+| `make version` | Print current version from latest git tag |
+| `make release-patch` | Bump patch (v1.0.0 → v1.0.1), create annotated tag |
+| `make release-minor` | Bump minor (v1.0.0 → v1.1.0), create annotated tag |
+| `make release-major` | Bump major (v1.0.0 → v2.0.0), create annotated tag |
+
+Tags are created locally. Push with `git push origin <tag>` to trigger the release pipeline.
+
+### GitHub Actions Release Pipeline
+
+`.github/workflows/release.yml` — triggered on push of tags matching `v*.*.*`.
+
+**Jobs:**
+1. **test** — `go test -race ./...` + `go vet ./...`
+2. **build** — matrix: `linux/windows` × `amd64/arm64` (4 binaries). CGO disabled, static linking.
+3. **release** — creates GitHub Release with auto-generated notes, attaches binaries + SHA256 checksums.
+
+Binary naming: `log-analysis-mcp-{os}-{arch}` (`.exe` for windows).
 
 ### `go.mod`
 
