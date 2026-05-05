@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/trickyearlobe/log-analysis-mcp/internal/types"
 )
 
 func TestRunExtractErrors(t *testing.T) {
@@ -351,6 +353,94 @@ func TestNormalizeMessage(t *testing.T) {
 			got := normalizeMessage(tc.input)
 			if got != tc.want {
 				t.Errorf("normalizeMessage(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRunExtractErrorsSortByImpact(t *testing.T) {
+	// 2 FATAL errors vs 3 ERROR errors.
+	// By count: ERROR cluster wins (3 > 2).
+	// By impact: FATAL wins (2×10=20 > 3×5=15).
+	// Use IPs so the ERROR messages normalize to the same pattern.
+	impactLog := strings.Join([]string{
+		`{"timestamp":"2025-01-15T02:00:00Z","level":"fatal","msg":"Database connection lost"}`,
+		`{"timestamp":"2025-01-15T02:01:00Z","level":"fatal","msg":"Database connection lost"}`,
+		`{"timestamp":"2025-01-15T02:02:00Z","level":"error","msg":"Request timeout for host 10.0.0.1"}`,
+		`{"timestamp":"2025-01-15T02:03:00Z","level":"error","msg":"Request timeout for host 10.0.0.2"}`,
+		`{"timestamp":"2025-01-15T02:04:00Z","level":"error","msg":"Request timeout for host 10.0.0.3"}`,
+	}, "\n") + "\n"
+	impactPath := writeTempLog(t, "impact.log", impactLog)
+
+	t.Run("sort_by count puts higher-count cluster first", func(t *testing.T) {
+		out, err := RunExtractErrors(ExtractErrorsInput{Path: impactPath, SortBy: "count"})
+		if err != nil {
+			t.Fatalf("RunExtractErrors: %v", err)
+		}
+		if len(out.Clusters) < 2 {
+			t.Fatalf("expected at least 2 clusters, got %d", len(out.Clusters))
+		}
+		if out.Clusters[0].Count != 3 {
+			t.Errorf("first cluster count = %d, want 3 (ERROR cluster)", out.Clusters[0].Count)
+		}
+	})
+
+	t.Run("sort_by impact puts higher-impact cluster first", func(t *testing.T) {
+		out, err := RunExtractErrors(ExtractErrorsInput{Path: impactPath, SortBy: "impact"})
+		if err != nil {
+			t.Fatalf("RunExtractErrors: %v", err)
+		}
+		if len(out.Clusters) < 2 {
+			t.Fatalf("expected at least 2 clusters, got %d", len(out.Clusters))
+		}
+		// FATAL cluster: 2×10=20, ERROR cluster: 3×5=15
+		if out.Clusters[0].ImpactScore != 20 {
+			t.Errorf("first cluster impact = %v, want 20 (FATAL cluster)", out.Clusters[0].ImpactScore)
+		}
+		if out.Clusters[1].ImpactScore != 15 {
+			t.Errorf("second cluster impact = %v, want 15 (ERROR cluster)", out.Clusters[1].ImpactScore)
+		}
+	})
+
+	t.Run("impact_score always populated regardless of sort_by", func(t *testing.T) {
+		out, err := RunExtractErrors(ExtractErrorsInput{Path: impactPath, SortBy: "count"})
+		if err != nil {
+			t.Fatalf("RunExtractErrors: %v", err)
+		}
+		for _, c := range out.Clusters {
+			if c.ImpactScore == 0 {
+				t.Errorf("cluster %q has zero ImpactScore", c.Pattern)
+			}
+		}
+	})
+
+	t.Run("invalid sort_by rejected", func(t *testing.T) {
+		_, err := RunExtractErrors(ExtractErrorsInput{Path: impactPath, SortBy: "invalid"})
+		if err == nil {
+			t.Fatal("expected error for invalid sort_by, got nil")
+		}
+		if !strings.Contains(err.Error(), "VALIDATION_ERROR") {
+			t.Errorf("error = %v, want VALIDATION_ERROR", err)
+		}
+	})
+}
+
+func TestSeverityWeight(t *testing.T) {
+	tests := []struct {
+		level types.LogLevel
+		want  float64
+	}{
+		{types.LogLevelFatal, 10},
+		{types.LogLevelCritical, 8},
+		{types.LogLevelError, 5},
+		{types.LogLevelWarn, 2},
+		{types.LogLevelInfo, 1},
+	}
+	for _, tc := range tests {
+		t.Run(string(tc.level), func(t *testing.T) {
+			got := severityWeight(tc.level)
+			if got != tc.want {
+				t.Errorf("severityWeight(%q) = %v, want %v", tc.level, got, tc.want)
 			}
 		})
 	}

@@ -89,6 +89,7 @@ type ErrorCluster struct {
     Pattern        string   `json:"pattern"`
     Count          int      `json:"count"`
     Percentage     float64  `json:"percentage"`
+    ImpactScore    float64  `json:"impact_score,omitempty"`
     FirstSeen      SeenAt   `json:"first_seen"`
     LastSeen       SeenAt   `json:"last_seen"`
     SampleMessages []string `json:"sample_messages"`

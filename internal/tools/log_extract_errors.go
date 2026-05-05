@@ -22,6 +22,7 @@ type ExtractErrorsInput struct {
 	Path               string `json:"path"                           jsonschema:"Path to the log file"`
 	IncludeStackTraces bool   `json:"include_stack_traces,omitempty" jsonschema:"Capture multiline stack traces with errors"`
 	MaxClusters        int    `json:"max_clusters,omitempty"         jsonschema:"Maximum number of error clusters to return (max 100)"`
+	SortBy             string `json:"sort_by,omitempty"              jsonschema:"Sort clusters by: count (default) or impact (count × severity weight)"`
 }
 
 // ErrorRate contains error frequency statistics.
@@ -77,10 +78,27 @@ func isErrorLevel(level *types.LogLevel) bool {
 type clusterAccumulator struct {
 	pattern        string
 	count          int
+	maxSeverity    types.LogLevel
 	firstSeen      types.SeenAt
 	lastSeen       types.SeenAt
 	sampleMessages []string
 	stackTrace     *string
+}
+
+// severityWeight returns the impact weight for a log level.
+func severityWeight(level types.LogLevel) float64 {
+	switch level {
+	case types.LogLevelFatal:
+		return 10
+	case types.LogLevelCritical:
+		return 8
+	case types.LogLevelError:
+		return 5
+	case types.LogLevelWarn:
+		return 2
+	default:
+		return 1
+	}
 }
 
 // RunExtractErrors extracts error-level log entries from a file, clusters them
@@ -89,6 +107,11 @@ func RunExtractErrors(input ExtractErrorsInput) (ExtractErrorsOutput, error) {
 	// Apply defaults and clamp.
 	input.MaxClusters = DefaultInt(input.MaxClusters, 20)
 	input.MaxClusters = ClampInt(input.MaxClusters, 1, 100)
+	input.SortBy = DefaultString(input.SortBy, "count")
+
+	if input.SortBy != "count" && input.SortBy != "impact" {
+		return ExtractErrorsOutput{}, fmt.Errorf("log_extract_errors: VALIDATION_ERROR: sort_by must be \"count\" or \"impact\", got %q", input.SortBy)
+	}
 
 	// Validate file access.
 	if err := CheckFileAccess(input.Path); err != nil {
@@ -190,17 +213,23 @@ func RunExtractErrors(input ExtractErrorsInput) (ExtractErrorsOutput, error) {
 					st = &s
 				}
 				acc = &clusterAccumulator{
-					pattern:   normalized,
-					count:     0,
-					firstSeen: seen,
-					lastSeen:  seen,
-					stackTrace: st,
+					pattern:     normalized,
+					count:       0,
+					maxSeverity: *entry.Level,
+					firstSeen:   seen,
+					lastSeen:    seen,
+					stackTrace:  st,
 				}
 				clusters[normalized] = acc
 			}
 
 			acc.count++
 			acc.lastSeen = seen
+
+			// Track highest severity seen in this cluster.
+			if severityWeight(*entry.Level) > severityWeight(acc.maxSeverity) {
+				acc.maxSeverity = *entry.Level
+			}
 
 			if len(acc.sampleMessages) < maxSampleMessages {
 				acc.sampleMessages = append(acc.sampleMessages, entry.Message)
@@ -224,10 +253,12 @@ func RunExtractErrors(input ExtractErrorsInput) (ExtractErrorsOutput, error) {
 		if samples == nil {
 			samples = []string{}
 		}
+		impact := float64(acc.count) * severityWeight(acc.maxSeverity)
 		clusterSlice = append(clusterSlice, types.ErrorCluster{
 			Pattern:        acc.pattern,
 			Count:          acc.count,
 			Percentage:     pct,
+			ImpactScore:    impact,
 			FirstSeen:      acc.firstSeen,
 			LastSeen:       acc.lastSeen,
 			SampleMessages: samples,
@@ -235,10 +266,16 @@ func RunExtractErrors(input ExtractErrorsInput) (ExtractErrorsOutput, error) {
 		})
 	}
 
-	// Sort by count descending, then by pattern for deterministic ordering.
+	// Sort clusters.
 	sort.Slice(clusterSlice, func(i, j int) bool {
-		if clusterSlice[i].Count != clusterSlice[j].Count {
-			return clusterSlice[i].Count > clusterSlice[j].Count
+		if input.SortBy == "impact" {
+			if clusterSlice[i].ImpactScore != clusterSlice[j].ImpactScore {
+				return clusterSlice[i].ImpactScore > clusterSlice[j].ImpactScore
+			}
+		} else {
+			if clusterSlice[i].Count != clusterSlice[j].Count {
+				return clusterSlice[i].Count > clusterSlice[j].Count
+			}
 		}
 		return clusterSlice[i].Pattern < clusterSlice[j].Pattern
 	})
