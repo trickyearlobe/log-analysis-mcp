@@ -76,6 +76,39 @@ func isErrorLevel(level *types.LogLevel) bool {
 	return false
 }
 
+// levelKeywordRe matches common level keywords in free-form log lines.
+var levelKeywordRe = regexp.MustCompile(`(?i)\b(FATAL|CRITICAL|ERROR|WARN(?:ING)?|INFO|DEBUG|TRACE)\b`)
+
+// inferLevelFromText scans a line for level keywords when no parser is available.
+// Returns nil if no recognizable level keyword is found.
+func inferLevelFromText(line string) *types.LogLevel {
+	match := levelKeywordRe.FindString(line)
+	if match == "" {
+		return nil
+	}
+	upper := strings.ToUpper(match)
+	var level types.LogLevel
+	switch upper {
+	case "FATAL":
+		level = types.LogLevelFatal
+	case "CRITICAL":
+		level = types.LogLevelCritical
+	case "ERROR":
+		level = types.LogLevelError
+	case "WARN", "WARNING":
+		level = types.LogLevelWarn
+	case "INFO":
+		level = types.LogLevelInfo
+	case "DEBUG":
+		level = types.LogLevelDebug
+	case "TRACE":
+		level = types.LogLevelTrace
+	default:
+		return nil
+	}
+	return &level
+}
+
 // clusterAccumulator tracks state for a single error cluster during streaming.
 type clusterAccumulator struct {
 	pattern        string
@@ -368,8 +401,18 @@ func extractErrorsRecordMode(
 		if parser != nil {
 			entry = parser.Parse(firstLine)
 		}
+		// Fallback: if parser didn't recognize the line, infer level from
+		// keywords so record_separator works with unrecognized formats.
 		if entry == nil {
-			continue
+			level := inferLevelFromText(firstLine)
+			if level == nil {
+				continue
+			}
+			entry = &types.ParsedLogEntry{
+				Level:   level,
+				Message: firstLine,
+				Raw:     firstLine,
+			}
 		}
 
 		entry.LineNumber = rec.StartLine

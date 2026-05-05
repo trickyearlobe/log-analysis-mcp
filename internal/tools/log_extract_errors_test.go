@@ -447,17 +447,19 @@ func TestSeverityWeight(t *testing.T) {
 }
 
 func TestRunExtractErrorsRecordSeparator(t *testing.T) {
-	// Simulate JSON log entries with multi-line stack traces following them.
-	// The record_separator groups entries by the JSON opening brace at line start.
+	// Free-form log format (not JSON/syslog/apache) with multi-line stack traces.
+	// record_separator enables extract_errors to work even when the auto-detect
+	// parser doesn't recognize the format — it falls back to keyword-based level
+	// inference from the first line of each record.
 	log := strings.Join([]string{
-		`{"timestamp":"2025-01-15T10:00:00Z","level":"error","msg":"NullPointerException in handler"}`,
+		`2025-01-15T10:00:00Z ERROR NullPointerException in handler`,
 		`	at com.example.Handler.process(Handler.java:42)`,
 		`	at com.example.Server.handle(Server.java:118)`,
-		`{"timestamp":"2025-01-15T10:01:00Z","level":"info","msg":"Request completed successfully"}`,
-		`{"timestamp":"2025-01-15T10:02:00Z","level":"error","msg":"NullPointerException in handler"}`,
+		`2025-01-15T10:01:00Z INFO Request completed successfully`,
+		`2025-01-15T10:02:00Z ERROR NullPointerException in handler`,
 		`	at com.example.Handler.process(Handler.java:42)`,
 		`	at com.example.Server.handle(Server.java:118)`,
-		`{"timestamp":"2025-01-15T10:03:00Z","level":"error","msg":"Connection refused to 10.0.0.5"}`,
+		`2025-01-15T10:03:00Z ERROR Connection refused to 10.0.0.5`,
 	}, "\n") + "\n"
 	logPath := writeTempLog(t, "record_sep.log", log)
 
@@ -469,8 +471,8 @@ func TestRunExtractErrorsRecordSeparator(t *testing.T) {
 		wantStackTrace  bool
 	}{
 		{
-			name:            "groups multi-line entries by JSON separator",
-			separator:       `^\{`,
+			name:            "groups multi-line entries by timestamp separator",
+			separator:       `^\d{4}-\d{2}-\d{2}T`,
 			wantClusters:    2,
 			wantTotalErrors: 3,
 			wantStackTrace:  true,
