@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/trickyearlobe/log-analysis-mcp/internal/fileutil"
@@ -23,6 +24,7 @@ type ExtractErrorsInput struct {
 	IncludeStackTraces bool   `json:"include_stack_traces,omitempty" jsonschema:"Capture multiline stack traces with errors"`
 	MaxClusters        int    `json:"max_clusters,omitempty"         jsonschema:"Maximum number of error clusters to return (max 100)"`
 	SortBy             string `json:"sort_by,omitempty"              jsonschema:"Sort clusters by: count (default) or impact (count × severity weight)"`
+	RecordSeparator    string `json:"record_separator,omitempty"     jsonschema:"RE2 regex matching the start of a new log record (groups multi-line entries)"`
 }
 
 // ErrorRate contains error frequency statistics.
@@ -119,6 +121,7 @@ func RunExtractErrors(input ExtractErrorsInput) (ExtractErrorsOutput, error) {
 	}
 
 	// Sample lines and auto-detect format.
+	// When record_separator is active, we still need a parser for the first line of each record.
 	sampleLines, err := SampleLines(input.Path, sampleLineCount)
 	if err != nil {
 		return ExtractErrorsOutput{}, fmt.Errorf("log_extract_errors: %w", err)
@@ -126,9 +129,19 @@ func RunExtractErrors(input ExtractErrorsInput) (ExtractErrorsOutput, error) {
 
 	_, parser := parsers.AutoDetectWithHint(sampleLines, "")
 
-	// Build a MultilineCombiner if stack traces are requested and we have a parser.
+	// Compile record separator regex if provided.
+	var recordSep *regexp.Regexp
+	if input.RecordSeparator != "" {
+		recordSep, err = regexp.Compile(input.RecordSeparator)
+		if err != nil {
+			return ExtractErrorsOutput{}, fmt.Errorf("log_extract_errors: VALIDATION_ERROR: invalid record_separator regex: %w", err)
+		}
+	}
+
+	// Build a MultilineCombiner if stack traces are requested, no record_separator,
+	// and we have a parser.
 	var combiner *parsers.MultilineCombiner
-	if input.IncludeStackTraces && parser != nil {
+	if input.IncludeStackTraces && parser != nil && recordSep == nil {
 		combiner = parsers.NewMultilineCombiner(parser)
 	}
 
@@ -140,106 +153,22 @@ func RunExtractErrors(input ExtractErrorsInput) (ExtractErrorsOutput, error) {
 	// Track first and last timestamps for error rate calculation.
 	var firstTimestamp, lastTimestamp *string
 
-	startLine := 1
-	for {
-		result, err := fileutil.ReadLines(input.Path, startLine, extractErrorsPageSize)
+	if recordSep != nil {
+		// Record-separator mode: use RecordScanner.
+		totalLines, totalErrors, err = extractErrorsRecordMode(
+			input, recordSep, parser, clusters, &firstTimestamp, &lastTimestamp,
+		)
 		if err != nil {
-			return ExtractErrorsOutput{}, fmt.Errorf("log_extract_errors: read at line %d: %w", startLine, err)
+			return ExtractErrorsOutput{}, err
 		}
-
-		totalLines += len(result.Lines)
-
-		// Collect raw text for this page.
-		var entries []*types.ParsedLogEntry
-
-		if combiner != nil {
-			// Use multiline combiner for stack trace aggregation.
-			rawLines := make([]string, len(result.Lines))
-			for i, lr := range result.Lines {
-				rawLines[i] = lr.Text
-			}
-			pageStartLine := startLine
-			if len(result.Lines) > 0 {
-				pageStartLine = result.Lines[0].LineNumber
-			}
-			entries = combiner.Combine(rawLines, pageStartLine)
-		} else if parser != nil {
-			// Parse line by line without multiline combining.
-			for _, lr := range result.Lines {
-				entry := parser.Parse(lr.Text)
-				if entry != nil {
-					entry.LineNumber = lr.LineNumber
-					entry.LineCount = 1
-					entries = append(entries, entry)
-				}
-			}
-		} else {
-			// No parser detected — skip (no structured parsing possible).
-			// We still counted the lines above for totalLines.
-			if !result.HasMore || len(result.Lines) == 0 {
-				break
-			}
-			startLine += len(result.Lines)
-			continue
+	} else {
+		// Line-based mode (existing behaviour).
+		totalLines, totalErrors, err = extractErrorsLineMode(
+			input, parser, combiner, clusters, &firstTimestamp, &lastTimestamp,
+		)
+		if err != nil {
+			return ExtractErrorsOutput{}, err
 		}
-
-		// Filter for error-level entries and cluster them.
-		for _, entry := range entries {
-			if !isErrorLevel(entry.Level) {
-				continue
-			}
-
-			totalErrors++
-
-			normalized := normalizeMessage(entry.Message)
-			seen := types.SeenAt{
-				Timestamp:  entry.Timestamp,
-				LineNumber: entry.LineNumber,
-			}
-
-			// Track global first/last timestamps for error rate.
-			if entry.Timestamp != nil {
-				if firstTimestamp == nil {
-					firstTimestamp = entry.Timestamp
-				}
-				lastTimestamp = entry.Timestamp
-			}
-
-			acc, exists := clusters[normalized]
-			if !exists {
-				var st *string
-				if entry.StackTrace != "" {
-					s := entry.StackTrace
-					st = &s
-				}
-				acc = &clusterAccumulator{
-					pattern:     normalized,
-					count:       0,
-					maxSeverity: *entry.Level,
-					firstSeen:   seen,
-					lastSeen:    seen,
-					stackTrace:  st,
-				}
-				clusters[normalized] = acc
-			}
-
-			acc.count++
-			acc.lastSeen = seen
-
-			// Track highest severity seen in this cluster.
-			if severityWeight(*entry.Level) > severityWeight(acc.maxSeverity) {
-				acc.maxSeverity = *entry.Level
-			}
-
-			if len(acc.sampleMessages) < maxSampleMessages {
-				acc.sampleMessages = append(acc.sampleMessages, entry.Message)
-			}
-		}
-
-		if !result.HasMore || len(result.Lines) == 0 {
-			break
-		}
-		startLine += len(result.Lines)
 	}
 
 	// Convert cluster map to sorted slice.
@@ -353,4 +282,172 @@ func parseTimestamp(s string) (time.Time, error) {
 		}
 	}
 	return time.Time{}, fmt.Errorf("unrecognized timestamp format: %q", s)
+}
+
+// extractErrorsLineMode processes errors using line-based ReadLines pagination.
+func extractErrorsLineMode(
+	input ExtractErrorsInput,
+	parser parsers.Parser,
+	combiner *parsers.MultilineCombiner,
+	clusters map[string]*clusterAccumulator,
+	firstTimestamp, lastTimestamp **string,
+) (totalLines, totalErrors int, err error) {
+	startLine := 1
+	for {
+		result, readErr := fileutil.ReadLines(input.Path, startLine, extractErrorsPageSize)
+		if readErr != nil {
+			return totalLines, totalErrors, fmt.Errorf("log_extract_errors: read at line %d: %w", startLine, readErr)
+		}
+
+		totalLines += len(result.Lines)
+
+		var entries []*types.ParsedLogEntry
+
+		if combiner != nil {
+			rawLines := make([]string, len(result.Lines))
+			for i, lr := range result.Lines {
+				rawLines[i] = lr.Text
+			}
+			pageStartLine := startLine
+			if len(result.Lines) > 0 {
+				pageStartLine = result.Lines[0].LineNumber
+			}
+			entries = combiner.Combine(rawLines, pageStartLine)
+		} else if parser != nil {
+			for _, lr := range result.Lines {
+				entry := parser.Parse(lr.Text)
+				if entry != nil {
+					entry.LineNumber = lr.LineNumber
+					entry.LineCount = 1
+					entries = append(entries, entry)
+				}
+			}
+		} else {
+			if !result.HasMore || len(result.Lines) == 0 {
+				break
+			}
+			startLine += len(result.Lines)
+			continue
+		}
+
+		totalErrors += accumulateErrors(entries, clusters, firstTimestamp, lastTimestamp)
+
+		if !result.HasMore || len(result.Lines) == 0 {
+			break
+		}
+		startLine += len(result.Lines)
+	}
+	return totalLines, totalErrors, nil
+}
+
+// extractErrorsRecordMode processes errors using RecordScanner for multi-line grouping.
+func extractErrorsRecordMode(
+	input ExtractErrorsInput,
+	sep *regexp.Regexp,
+	parser parsers.Parser,
+	clusters map[string]*clusterAccumulator,
+	firstTimestamp, lastTimestamp **string,
+) (totalLines, totalErrors int, err error) {
+	rs, err := fileutil.NewRecordScanner(input.Path, sep)
+	if err != nil {
+		return 0, 0, fmt.Errorf("log_extract_errors: %w", err)
+	}
+	defer rs.Close()
+
+	for rs.Scan() {
+		rec := rs.Record()
+		totalLines += rec.LineCount
+
+		// Parse the first line of the record.
+		firstLine := rec.Text
+		if idx := strings.IndexByte(rec.Text, '\n'); idx >= 0 {
+			firstLine = rec.Text[:idx]
+		}
+
+		var entry *types.ParsedLogEntry
+		if parser != nil {
+			entry = parser.Parse(firstLine)
+		}
+		if entry == nil {
+			continue
+		}
+
+		entry.LineNumber = rec.StartLine
+		entry.LineCount = rec.LineCount
+
+		// Remaining lines become the stack trace.
+		if idx := strings.IndexByte(rec.Text, '\n'); idx >= 0 {
+			entry.StackTrace = rec.Text[idx+1:]
+		}
+
+		if !isErrorLevel(entry.Level) {
+			continue
+		}
+
+		entries := []*types.ParsedLogEntry{entry}
+		totalErrors += accumulateErrors(entries, clusters, firstTimestamp, lastTimestamp)
+	}
+	if rs.Err() != nil {
+		return totalLines, totalErrors, fmt.Errorf("log_extract_errors: record scan: %w", rs.Err())
+	}
+	return totalLines, totalErrors, nil
+}
+
+// accumulateErrors processes parsed entries and adds error-level ones to clusters.
+// Returns the number of errors found.
+func accumulateErrors(
+	entries []*types.ParsedLogEntry,
+	clusters map[string]*clusterAccumulator,
+	firstTimestamp, lastTimestamp **string,
+) int {
+	count := 0
+	for _, entry := range entries {
+		if !isErrorLevel(entry.Level) {
+			continue
+		}
+		count++
+
+		normalized := normalizeMessage(entry.Message)
+		seen := types.SeenAt{
+			Timestamp:  entry.Timestamp,
+			LineNumber: entry.LineNumber,
+		}
+
+		if entry.Timestamp != nil {
+			if *firstTimestamp == nil {
+				*firstTimestamp = entry.Timestamp
+			}
+			*lastTimestamp = entry.Timestamp
+		}
+
+		acc, exists := clusters[normalized]
+		if !exists {
+			var st *string
+			if entry.StackTrace != "" {
+				s := entry.StackTrace
+				st = &s
+			}
+			acc = &clusterAccumulator{
+				pattern:     normalized,
+				count:       0,
+				maxSeverity: *entry.Level,
+				firstSeen:   seen,
+				lastSeen:    seen,
+				stackTrace:  st,
+			}
+			clusters[normalized] = acc
+		}
+
+		acc.count++
+		acc.lastSeen = seen
+
+		if severityWeight(*entry.Level) > severityWeight(acc.maxSeverity) {
+			acc.maxSeverity = *entry.Level
+		}
+
+		if len(acc.sampleMessages) < maxSampleMessages {
+			acc.sampleMessages = append(acc.sampleMessages, entry.Message)
+		}
+	}
+	return count
 }

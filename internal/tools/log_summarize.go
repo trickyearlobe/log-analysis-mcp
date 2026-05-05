@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"math"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/trickyearlobe/log-analysis-mcp/internal/fileutil"
 	"github.com/trickyearlobe/log-analysis-mcp/internal/parsers"
@@ -19,8 +21,9 @@ const summarizeTopN = 10
 
 // SummarizeLogsInput defines the parameters for the log_summarize tool.
 type SummarizeLogsInput struct {
-	Path       string `json:"path"                 jsonschema:"Path to the log file"`
-	SampleSize int    `json:"sample_size,omitempty" jsonschema:"Number of lines to sample; 0 means analyze all lines"`
+	Path            string `json:"path"                 jsonschema:"Path to the log file"`
+	SampleSize      int    `json:"sample_size,omitempty" jsonschema:"Number of lines to sample; 0 means analyze all lines"`
+	RecordSeparator string `json:"record_separator,omitempty" jsonschema:"RE2 regex matching the start of a new log record (counts records as entries)"`
 }
 
 // TimeRangeInfo contains the earliest and latest timestamps and their duration.
@@ -146,6 +149,15 @@ func RunSummarizeLogs(input SummarizeLogsInput) (SummarizeLogsOutput, error) {
 	// Detect format and obtain parser.
 	detection, parser := parsers.AutoDetectWithHint(sampleLines, "")
 
+	// Compile record separator if provided.
+	var recordSep *regexp.Regexp
+	if input.RecordSeparator != "" {
+		recordSep, err = regexp.Compile(input.RecordSeparator)
+		if err != nil {
+			return SummarizeLogsOutput{}, fmt.Errorf("log_summarize: VALIDATION_ERROR: invalid record_separator regex: %w", err)
+		}
+	}
+
 	// Accumulators for single-pass stats.
 	levelCounts := make(map[string]int)
 	sourceCounts := make(map[string]int)
@@ -156,85 +168,45 @@ func RunSummarizeLogs(input SummarizeLogsInput) (SummarizeLogsOutput, error) {
 	totalLines := 0
 	sampled := false
 
-	// Stream entire file in pages.
-	startLine := 1
-	for {
-		// If sampling, only read what we need.
-		pageSize := summarizePageSize
-		if input.SampleSize > 0 {
-			remaining := input.SampleSize - totalLines
-			if remaining <= 0 {
+	if recordSep != nil {
+		// Record mode: count records as entries, parse first line of each.
+		rs, rsErr := fileutil.NewRecordScanner(input.Path, recordSep)
+		if rsErr != nil {
+			return SummarizeLogsOutput{}, fmt.Errorf("log_summarize: %w", rsErr)
+		}
+		defer rs.Close()
+
+		for rs.Scan() {
+			rec := rs.Record()
+			totalLines++
+
+			if input.SampleSize > 0 && totalLines > input.SampleSize {
 				sampled = true
 				break
 			}
-			if remaining < pageSize {
-				pageSize = remaining
-			}
-		}
-
-		result, err := fileutil.ReadLines(input.Path, startLine, pageSize)
-		if err != nil {
-			return SummarizeLogsOutput{}, fmt.Errorf("log_summarize: read at line %d: %w", startLine, err)
-		}
-
-		if len(result.Lines) == 0 {
-			break
-		}
-
-		for _, lr := range result.Lines {
-			totalLines++
 
 			if parser == nil {
 				continue
 			}
 
-			entry := parser.Parse(lr.Text)
+			firstLine := rec.Text
+			if idx := strings.IndexByte(rec.Text, '\n'); idx >= 0 {
+				firstLine = rec.Text[:idx]
+			}
+
+			entry := parser.Parse(firstLine)
 			if entry == nil {
 				continue
 			}
 
-			// Level distribution.
-			if entry.Level != nil {
-				levelCounts[string(*entry.Level)]++
-			}
-
-			// Source counts.
-			if entry.Source != nil && *entry.Source != "" {
-				sourceCounts[*entry.Source]++
-			}
-
-			// Error message counts.
-			if isSummarizeErrorLevel(entry.Level) {
-				errorMsgCounts[entry.Message]++
-			}
-
-			// Timestamp tracking.
-			if entry.Timestamp != nil && *entry.Timestamp != "" {
-				ts := *entry.Timestamp
-				if earliest == "" || ts < earliest {
-					earliest = ts
-				}
-				if latest == "" || ts > latest {
-					latest = ts
-				}
-
-				// Per-minute bucket.
-				minuteKey := truncateToMinute(ts)
-				if minuteKey != "" {
-					minuteBuckets[minuteKey]++
-				}
-			}
+			accumulateSummarizeEntry(entry, levelCounts, sourceCounts, errorMsgCounts, minuteBuckets, &earliest, &latest)
 		}
-
-		if input.SampleSize > 0 && totalLines >= input.SampleSize {
-			sampled = true
-			break
+		if rs.Err() != nil {
+			return SummarizeLogsOutput{}, fmt.Errorf("log_summarize: record scan: %w", rs.Err())
 		}
-
-		if !result.HasMore {
-			break
-		}
-		startLine += len(result.Lines)
+	} else {
+		// Line mode: existing page-by-page streaming.
+		totalLines, sampled = summarizeLineMode(input, parser, levelCounts, sourceCounts, errorMsgCounts, minuteBuckets, &earliest, &latest)
 	}
 
 	// Build level distribution with percentages.
@@ -375,3 +347,84 @@ func computeThroughput(minuteBuckets map[string]int, totalLines int, timeRange *
 
 	return info
 }
+
+// accumulateSummarizeEntry updates all accumulators for one parsed entry.
+func accumulateSummarizeEntry(
+	entry *types.ParsedLogEntry,
+	levelCounts, sourceCounts, errorMsgCounts map[string]int,
+	minuteBuckets map[string]int,
+	earliest, latest *string,
+) {
+	if entry.Level != nil {
+		levelCounts[string(*entry.Level)]++
+	}
+	if entry.Source != nil && *entry.Source != "" {
+		sourceCounts[*entry.Source]++
+	}
+	if isSummarizeErrorLevel(entry.Level) {
+		errorMsgCounts[entry.Message]++
+	}
+	if entry.Timestamp != nil && *entry.Timestamp != "" {
+		ts := *entry.Timestamp
+		if *earliest == "" || ts < *earliest {
+			*earliest = ts
+		}
+		if *latest == "" || ts > *latest {
+			*latest = ts
+		}
+		minuteKey := truncateToMinute(ts)
+		if minuteKey != "" {
+			minuteBuckets[minuteKey]++
+		}
+	}
+}
+
+// summarizeLineMode runs the existing page-by-page line streaming.
+func summarizeLineMode(
+	input SummarizeLogsInput,
+	parser parsers.Parser,
+	levelCounts, sourceCounts, errorMsgCounts map[string]int,
+	minuteBuckets map[string]int,
+	earliest, latest *string,
+) (totalLines int, sampled bool) {
+	startLine := 1
+	for {
+		pageSize := summarizePageSize
+		if input.SampleSize > 0 {
+			remaining := input.SampleSize - totalLines
+			if remaining <= 0 {
+				return totalLines, true
+			}
+			if remaining < pageSize {
+				pageSize = remaining
+			}
+		}
+
+		result, err := fileutil.ReadLines(input.Path, startLine, pageSize)
+		if err != nil || len(result.Lines) == 0 {
+			break
+		}
+
+		for _, lr := range result.Lines {
+			totalLines++
+			if parser == nil {
+				continue
+			}
+			entry := parser.Parse(lr.Text)
+			if entry == nil {
+				continue
+			}
+			accumulateSummarizeEntry(entry, levelCounts, sourceCounts, errorMsgCounts, minuteBuckets, earliest, latest)
+		}
+
+		if input.SampleSize > 0 && totalLines >= input.SampleSize {
+			return totalLines, true
+		}
+		if !result.HasMore {
+			break
+		}
+		startLine += len(result.Lines)
+	}
+	return totalLines, false
+}
+

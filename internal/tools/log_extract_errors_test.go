@@ -445,3 +445,82 @@ func TestSeverityWeight(t *testing.T) {
 		})
 	}
 }
+
+func TestRunExtractErrorsRecordSeparator(t *testing.T) {
+	// Simulate JSON log entries with multi-line stack traces following them.
+	// The record_separator groups entries by the JSON opening brace at line start.
+	log := strings.Join([]string{
+		`{"timestamp":"2025-01-15T10:00:00Z","level":"error","msg":"NullPointerException in handler"}`,
+		`	at com.example.Handler.process(Handler.java:42)`,
+		`	at com.example.Server.handle(Server.java:118)`,
+		`{"timestamp":"2025-01-15T10:01:00Z","level":"info","msg":"Request completed successfully"}`,
+		`{"timestamp":"2025-01-15T10:02:00Z","level":"error","msg":"NullPointerException in handler"}`,
+		`	at com.example.Handler.process(Handler.java:42)`,
+		`	at com.example.Server.handle(Server.java:118)`,
+		`{"timestamp":"2025-01-15T10:03:00Z","level":"error","msg":"Connection refused to 10.0.0.5"}`,
+	}, "\n") + "\n"
+	logPath := writeTempLog(t, "record_sep.log", log)
+
+	tests := []struct {
+		name            string
+		separator       string
+		wantClusters    int
+		wantTotalErrors int
+		wantStackTrace  bool
+	}{
+		{
+			name:            "groups multi-line entries by JSON separator",
+			separator:       `^\{`,
+			wantClusters:    2,
+			wantTotalErrors: 3,
+			wantStackTrace:  true,
+		},
+		{
+			name:            "invalid regex returns error",
+			separator:       `[invalid`,
+			wantClusters:    0,
+			wantTotalErrors: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := RunExtractErrors(ExtractErrorsInput{
+				Path:            logPath,
+				RecordSeparator: tt.separator,
+			})
+			if tt.separator == `[invalid` {
+				if err == nil {
+					t.Fatal("expected error for invalid regex")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(out.Clusters) != tt.wantClusters {
+				t.Errorf("got %d clusters, want %d", len(out.Clusters), tt.wantClusters)
+				for i, c := range out.Clusters {
+					t.Logf("  cluster[%d]: pattern=%q count=%d", i, c.Pattern, c.Count)
+				}
+			}
+			if out.TotalErrors != tt.wantTotalErrors {
+				t.Errorf("TotalErrors = %d, want %d", out.TotalErrors, tt.wantTotalErrors)
+			}
+
+			if tt.wantStackTrace && len(out.Clusters) > 0 {
+				found := false
+				for _, c := range out.Clusters {
+					if c.StackTrace != nil && strings.Contains(*c.StackTrace, "Handler.java") {
+						found = true
+					}
+				}
+				if !found {
+					t.Error("expected at least one cluster with a stack trace containing Handler.java")
+				}
+			}
+		})
+	}
+}
+

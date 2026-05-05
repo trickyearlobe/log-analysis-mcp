@@ -13,12 +13,13 @@ const searchPageSize = 1000
 
 // SearchLogsInput defines the parameters for the log_search tool.
 type SearchLogsInput struct {
-	Path          string `json:"path"                    jsonschema:"Path to the log file to search"`
-	Pattern       string `json:"pattern"                 jsonschema:"Search pattern (plain text or regex)"`
-	IsRegex       bool   `json:"is_regex,omitempty"       jsonschema:"Treat pattern as a regular expression"`
-	CaseSensitive bool   `json:"case_sensitive,omitempty" jsonschema:"Case-sensitive search"`
-	ContextLines  int    `json:"context_lines,omitempty"  jsonschema:"Lines of context before and after each match (0-10)"`
-	MaxResults    int    `json:"max_results,omitempty"    jsonschema:"Maximum number of matches to return (max 500)"`
+	Path            string `json:"path"                    jsonschema:"Path to the log file to search"`
+	Pattern         string `json:"pattern"                 jsonschema:"Search pattern (plain text or regex)"`
+	IsRegex         bool   `json:"is_regex,omitempty"       jsonschema:"Treat pattern as a regular expression"`
+	CaseSensitive   bool   `json:"case_sensitive,omitempty" jsonschema:"Case-sensitive search"`
+	ContextLines    int    `json:"context_lines,omitempty"  jsonschema:"Lines of context before and after each match (0-10)"`
+	MaxResults      int    `json:"max_results,omitempty"    jsonschema:"Maximum number of matches to return (max 500)"`
+	RecordSeparator string `json:"record_separator,omitempty" jsonschema:"RE2 regex matching the start of a new log record (returns full records on match)"`
 }
 
 // SearchLogsOutput is the structured result of the log_search tool.
@@ -49,7 +50,18 @@ func RunSearchLogs(input SearchLogsInput) (SearchLogsOutput, error) {
 		return SearchLogsOutput{}, fmt.Errorf("log_search: %w", err)
 	}
 
-	matches, totalMatches, searchedLines, err := streamSearch(input.Path, re, input.ContextLines, input.MaxResults)
+	var matches []types.SearchMatch
+	var totalMatches, searchedLines int
+
+	if input.RecordSeparator != "" {
+		sep, sepErr := regexp.Compile(input.RecordSeparator)
+		if sepErr != nil {
+			return SearchLogsOutput{}, fmt.Errorf("log_search: VALIDATION_ERROR: invalid record_separator regex: %w", sepErr)
+		}
+		matches, totalMatches, searchedLines, err = streamSearchRecords(input.Path, re, sep, input.MaxResults)
+	} else {
+		matches, totalMatches, searchedLines, err = streamSearch(input.Path, re, input.ContextLines, input.MaxResults)
+	}
 	if err != nil {
 		return SearchLogsOutput{}, fmt.Errorf("log_search: %w", err)
 	}
@@ -170,4 +182,39 @@ func copyTail(buf []string, n int) []string {
 	out := make([]string, len(buf)-start)
 	copy(out, buf[start:])
 	return out
+}
+
+// streamSearchRecords searches using RecordScanner — the match applies to the
+// full record text, and the entire record is returned on match.
+func streamSearchRecords(path string, re, sep *regexp.Regexp, maxResults int) ([]types.SearchMatch, int, int, error) {
+	rs, err := fileutil.NewRecordScanner(path, sep)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	defer rs.Close()
+
+	var matches []types.SearchMatch
+	totalMatches := 0
+	searchedLines := 0
+
+	for rs.Scan() {
+		rec := rs.Record()
+		searchedLines += rec.LineCount
+
+		if re.MatchString(rec.Text) {
+			totalMatches++
+			if len(matches) < maxResults {
+				matches = append(matches, types.SearchMatch{
+					LineNumber:    rec.StartLine,
+					Line:          rec.Text,
+					BeforeContext: []string{},
+					AfterContext:  []string{},
+				})
+			}
+		}
+	}
+	if rs.Err() != nil {
+		return nil, 0, 0, rs.Err()
+	}
+	return matches, totalMatches, searchedLines, nil
 }
