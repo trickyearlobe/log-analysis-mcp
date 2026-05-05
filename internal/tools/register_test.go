@@ -48,8 +48,8 @@ func TestAllToolsOmitOutputSchema(t *testing.T) {
 		t.Fatalf("ListTools: %v", err)
 	}
 
-	if len(result.Tools) != 17 {
-		t.Fatalf("expected 17 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 18 {
+		t.Fatalf("expected 18 tools, got %d", len(result.Tools))
 	}
 
 	for _, tool := range result.Tools {

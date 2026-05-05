@@ -1,4 +1,4 @@
-// Package tools implements the 16 MCP tool handlers for log analysis.
+// Package tools implements the 18 MCP tool handlers for log analysis.
 package tools
 
 import (
@@ -93,6 +93,11 @@ func Register(srv *mcp.Server) {
         Name:        "log_count_by_level",
         Description: "Count log entries by severity level. A fast single-pass tool for multi-file triage — returns level counts with minimal output to save context tokens.",
     }, handleCountByLevel)
+
+    mcp.AddTool(srv, &mcp.Tool{
+        Name:        "log_file_info",
+        Description: "Get lightweight metadata about a log file: size, line count, first/last timestamps, compression type, and binary detection. Use before committing to expensive parsing.",
+    }, handleFileInfo)
 }
 
 func handleReadLogs(_ context.Context, _ *mcp.CallToolRequest, input ReadLogsInput) (*mcp.CallToolResult, any, error) {
@@ -225,6 +230,14 @@ func handleListArchive(_ context.Context, _ *mcp.CallToolRequest, input ListArch
 
 func handleCountByLevel(_ context.Context, _ *mcp.CallToolRequest, input CountByLevelInput) (*mcp.CallToolResult, any, error) {
 	result, err := RunCountByLevel(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
+}
+
+func handleFileInfo(_ context.Context, _ *mcp.CallToolRequest, input FileInfoInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunFileInfo(input)
 	if err != nil {
 		return nil, nil, err
 	}

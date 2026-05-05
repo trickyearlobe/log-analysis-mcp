@@ -105,6 +105,21 @@ func compressionType(path string) compType {
 	}
 }
 
+// CompressionName returns a human-readable compression type name based on file extension.
+// Returns "gzip", "bzip2", "zip", or "none".
+func CompressionName(path string) string {
+	switch compressionType(path) {
+	case compGzip:
+		return "gzip"
+	case compBzip2:
+		return "bzip2"
+	case compZip:
+		return "zip"
+	default:
+		return "none"
+	}
+}
+
 // gzipReadCloser wraps a gzip.Reader and the underlying file so that
 // Close releases both resources.
 type gzipReadCloser struct {
