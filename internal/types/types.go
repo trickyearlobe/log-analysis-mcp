@@ -28,6 +28,8 @@ const (
     LogFormatHabitatSup     LogFormat = "habitat-sup"
     LogFormatJournalISO     LogFormat = "journalctl-short-iso"
     LogFormatGoLogrusBracket LogFormat = "go-logrus-bracket"
+    LogFormatJavaLogback    LogFormat = "java-logback"
+    LogFormatSpringBoot     LogFormat = "spring-boot"
     LogFormatUnknown        LogFormat = "unknown"
 )
 

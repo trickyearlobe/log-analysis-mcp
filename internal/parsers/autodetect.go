@@ -3,11 +3,13 @@ package parsers
 import "github.com/trickyearlobe/log-analysis-mcp/internal/types"
 
 // registeredParsers returns parsers in priority order for tiebreaking.
-// Priority: JSON > Go Logrus Bracket > Erlang SASL > Habitat Sup > Syslog RFC 5424 > journalctl ISO > Syslog RFC 3164 > Apache Combined > Apache Common.
+// Priority: JSON > Spring Boot > Go Logrus Bracket > Java Logback > Erlang SASL > Habitat Sup > Syslog RFC 5424 > journalctl ISO > Syslog RFC 3164 > Apache Combined > Apache Common.
 func registeredParsers() []Parser {
 	return []Parser{
 		NewJSONParser(),
+		NewSpringBootParser(),
 		NewGoLogrusBracketParser(),
+		NewJavaLogbackParser(),
 		NewErlangSASLParser(),
 		NewHabitatSupParser(),
 		NewSyslogRFC5424Parser(),
