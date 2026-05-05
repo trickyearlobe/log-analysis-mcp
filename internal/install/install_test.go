@@ -497,7 +497,7 @@ func TestSupportedIDEsReturnsEntries(t *testing.T) {
 		names[ide.Name] = true
 	}
 
-	for _, want := range []string{"Claude Desktop", "VS Code", "Cursor", "Windsurf", "Zed", "Copilot CLI"} {
+	for _, want := range []string{"Claude Desktop", "VS Code", "Cursor", "Windsurf", "Zed", "Copilot CLI", "JetBrains", "Claude Code"} {
 		if !names[want] {
 			t.Errorf("missing IDE: %s", want)
 		}
@@ -693,9 +693,10 @@ func TestUpsertServerZedEntryIncludesArgsAndEnv(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "settings.json")
 
-	action, err := UpsertServer(configPath, "context_servers", "test-server", "/usr/local/bin/test")
+	zedExtra := map[string]any{"args": []any{}, "env": map[string]any{}}
+	action, err := UpsertServerWithOpts(configPath, "context_servers", "test-server", "/usr/local/bin/test", zedExtra, false)
 	if err != nil {
-		t.Fatalf("UpsertServer: %v", err)
+		t.Fatalf("UpsertServerWithOpts: %v", err)
 	}
 	if action != ActionInstalled {
 		t.Errorf("action = %q, want %q", action, ActionInstalled)
@@ -758,9 +759,10 @@ func TestUpsertServerZedUpdateAddsArgsAndEnv(t *testing.T) {
 	writeJSON(t, configPath, initial)
 
 	// Re-install with the same binary path — should detect missing fields and update.
-	action, err := UpsertServer(configPath, "context_servers", "test-server", "/usr/local/bin/test")
+	zedExtra := map[string]any{"args": []any{}, "env": map[string]any{}}
+	action, err := UpsertServerWithOpts(configPath, "context_servers", "test-server", "/usr/local/bin/test", zedExtra, false)
 	if err != nil {
-		t.Fatalf("UpsertServer: %v", err)
+		t.Fatalf("UpsertServerWithOpts: %v", err)
 	}
 	if action != ActionUpdated {
 		t.Errorf("action = %q, want %q (should update to add missing args/env)", action, ActionUpdated)
@@ -786,9 +788,10 @@ func TestUpsertServerCopilotEntryIncludesRequiredFields(t *testing.T) {
 	}
 	configPath := filepath.Join(copilotDir, "mcp-config.json")
 
-	action, err := UpsertServer(configPath, "mcpServers", "test-server", "/usr/local/bin/test")
+	copilotExtra := map[string]any{"type": "local", "args": []any{}, "env": map[string]any{}, "tools": []any{"*"}}
+	action, err := UpsertServerWithOpts(configPath, "mcpServers", "test-server", "/usr/local/bin/test", copilotExtra, false)
 	if err != nil {
-		t.Fatalf("UpsertServer: %v", err)
+		t.Fatalf("UpsertServerWithOpts: %v", err)
 	}
 	if action != ActionInstalled {
 		t.Errorf("action = %q, want %q", action, ActionInstalled)
@@ -834,9 +837,10 @@ func TestUpsertServerCopilotUpdateAddsRequiredFields(t *testing.T) {
 	writeJSON(t, configPath, initial)
 
 	// Re-install with the same binary path — should detect missing fields and update.
-	action, err := UpsertServer(configPath, "mcpServers", "test-server", "/usr/local/bin/test")
+	copilotExtra := map[string]any{"type": "local", "args": []any{}, "env": map[string]any{}, "tools": []any{"*"}}
+	action, err := UpsertServerWithOpts(configPath, "mcpServers", "test-server", "/usr/local/bin/test", copilotExtra, false)
 	if err != nil {
-		t.Fatalf("UpsertServer: %v", err)
+		t.Fatalf("UpsertServerWithOpts: %v", err)
 	}
 	if action != ActionUpdated {
 		t.Errorf("action = %q, want %q (should update to add missing type/tools)", action, ActionUpdated)
@@ -906,5 +910,147 @@ func TestJSONCCommentInsideString(t *testing.T) {
 	}
 	if config["description"] != "this has // slashes" {
 		t.Errorf("description = %q, want %q", config["description"], "this has // slashes")
+	}
+}
+
+// --- JetBrains tests ---
+
+func TestUpsertServerJetBrainsInstall(t *testing.T) {
+	dir := t.TempDir()
+	junieDir := filepath.Join(dir, ".junie", "mcp")
+	if err := os.MkdirAll(junieDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(junieDir, "mcp.json")
+
+	action, err := UpsertServer(configPath, "mcpServers", "test-server", "/usr/local/bin/test")
+	if err != nil {
+		t.Fatalf("UpsertServer: %v", err)
+	}
+	if action != ActionInstalled {
+		t.Errorf("action = %q, want %q", action, ActionInstalled)
+	}
+
+	config := readJSON(t, configPath)
+	servers := config["mcpServers"].(map[string]any)
+	entry := servers["test-server"].(map[string]any)
+
+	if entry["command"] != "/usr/local/bin/test" {
+		t.Errorf("command = %v, want %q", entry["command"], "/usr/local/bin/test")
+	}
+	// JetBrains uses same format as Claude Desktop — no extra fields.
+	if _, ok := entry["args"]; ok {
+		t.Error("JetBrains entry should NOT have 'args' field")
+	}
+	if _, ok := entry["type"]; ok {
+		t.Error("JetBrains entry should NOT have 'type' field")
+	}
+}
+
+// --- Claude Code tests ---
+
+func TestUpsertServerClaudeCodeInstall(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".claude.json")
+
+	// Claude Code uses NeedsExistingConfig, so create the file first.
+	writeJSON(t, configPath, map[string]any{"permissions": map[string]any{}})
+
+	claudeCodeExtra := map[string]any{"args": []any{}, "env": map[string]any{}}
+	action, err := UpsertServerWithOpts(configPath, "mcpServers", "test-server", "/usr/local/bin/test", claudeCodeExtra, true)
+	if err != nil {
+		t.Fatalf("UpsertServerWithOpts: %v", err)
+	}
+	if action != ActionInstalled {
+		t.Errorf("action = %q, want %q", action, ActionInstalled)
+	}
+
+	config := readJSON(t, configPath)
+	servers := config["mcpServers"].(map[string]any)
+	entry := servers["test-server"].(map[string]any)
+
+	if entry["command"] != "/usr/local/bin/test" {
+		t.Errorf("command = %v, want %q", entry["command"], "/usr/local/bin/test")
+	}
+	if entry["args"] == nil {
+		t.Error("Claude Code entry missing 'args' field")
+	}
+	if entry["env"] == nil {
+		t.Error("Claude Code entry missing 'env' field")
+	}
+}
+
+func TestUpsertServerClaudeCodeSkipsWhenConfigMissing(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".claude.json")
+	// File does NOT exist — should be skipped.
+
+	claudeCodeExtra := map[string]any{"args": []any{}, "env": map[string]any{}}
+	action, err := UpsertServerWithOpts(configPath, "mcpServers", "test-server", "/usr/local/bin/test", claudeCodeExtra, true)
+	if err != nil {
+		t.Fatalf("UpsertServerWithOpts: %v", err)
+	}
+	if action != ActionSkipped {
+		t.Errorf("action = %q, want %q (should skip when config file doesn't exist)", action, ActionSkipped)
+	}
+}
+
+func TestUpsertServerClaudeCodePreservesExistingKeys(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".claude.json")
+
+	initial := map[string]any{
+		"permissions":     map[string]any{"allow": []any{"read"}},
+		"primaryProvider": "anthropic",
+	}
+	writeJSON(t, configPath, initial)
+
+	claudeCodeExtra := map[string]any{"args": []any{}, "env": map[string]any{}}
+	_, err := UpsertServerWithOpts(configPath, "mcpServers", "test-server", "/usr/local/bin/test", claudeCodeExtra, true)
+	if err != nil {
+		t.Fatalf("UpsertServerWithOpts: %v", err)
+	}
+
+	config := readJSON(t, configPath)
+	if config["primaryProvider"] != "anthropic" {
+		t.Error("primaryProvider key was lost")
+	}
+	if _, ok := config["permissions"]; !ok {
+		t.Error("permissions key was lost")
+	}
+}
+
+func TestUpsertServerClaudeCodeUpdateAddsArgsAndEnv(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".claude.json")
+
+	// Simulate old install without args/env.
+	initial := map[string]any{
+		"mcpServers": map[string]any{
+			"test-server": map[string]any{
+				"command": "/usr/local/bin/test",
+			},
+		},
+	}
+	writeJSON(t, configPath, initial)
+
+	claudeCodeExtra := map[string]any{"args": []any{}, "env": map[string]any{}}
+	action, err := UpsertServerWithOpts(configPath, "mcpServers", "test-server", "/usr/local/bin/test", claudeCodeExtra, true)
+	if err != nil {
+		t.Fatalf("UpsertServerWithOpts: %v", err)
+	}
+	if action != ActionUpdated {
+		t.Errorf("action = %q, want %q (should update to add missing args/env)", action, ActionUpdated)
+	}
+
+	config := readJSON(t, configPath)
+	servers := config["mcpServers"].(map[string]any)
+	entry := servers["test-server"].(map[string]any)
+
+	if entry["args"] == nil {
+		t.Error("after update, Claude Code entry still missing 'args' field")
+	}
+	if entry["env"] == nil {
+		t.Error("after update, Claude Code entry still missing 'env' field")
 	}
 }

@@ -25,7 +25,7 @@ func Install() []Result {
 
 	for i, ide := range ides {
 		results[i].IDE = ide.Name
-		action, err := UpsertServer(ide.ConfigPath, ide.TopLevelKey, ServerName, binaryPath)
+		action, err := UpsertServerWithOpts(ide.ConfigPath, ide.TopLevelKey, ServerName, binaryPath, ide.ExtraFields, ide.NeedsExistingConfig)
 		results[i].Action = action
 		results[i].Error = err
 	}

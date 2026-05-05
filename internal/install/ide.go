@@ -11,9 +11,11 @@ const ServerName = "log-analysis-mcp"
 
 // IDE describes an IDE's MCP configuration location and format.
 type IDE struct {
-	Name        string // human-readable name
-	ConfigPath  string // absolute path to config file
-	TopLevelKey string // JSON key containing server definitions
+	Name               string         // human-readable name
+	ConfigPath         string         // absolute path to config file
+	TopLevelKey        string         // JSON key containing server definitions
+	ExtraFields        map[string]any // additional fields to include in the server entry
+	NeedsExistingConfig bool          // if true, skip when config file doesn't exist (vs checking parent dir)
 }
 
 // SupportedIDEs returns all known IDEs with their config paths resolved for the current OS.
@@ -47,11 +49,25 @@ func SupportedIDEs() []IDE {
 			Name:        "Zed",
 			ConfigPath:  filepath.Join(home, ".config", "zed", "settings.json"),
 			TopLevelKey: "context_servers",
+			ExtraFields: map[string]any{"args": []any{}, "env": map[string]any{}},
 		},
 		{
 			Name:        "Copilot CLI",
 			ConfigPath:  filepath.Join(home, ".copilot", "mcp-config.json"),
 			TopLevelKey: "mcpServers",
+			ExtraFields: map[string]any{"type": "local", "args": []any{}, "env": map[string]any{}, "tools": []any{"*"}},
+		},
+		{
+			Name:        "JetBrains",
+			ConfigPath:  filepath.Join(home, ".junie", "mcp", "mcp.json"),
+			TopLevelKey: "mcpServers",
+		},
+		{
+			Name:               "Claude Code",
+			ConfigPath:         filepath.Join(home, ".claude.json"),
+			TopLevelKey:        "mcpServers",
+			ExtraFields:        map[string]any{"args": []any{}, "env": map[string]any{}},
+			NeedsExistingConfig: true,
 		},
 	}
 

@@ -28,10 +28,20 @@ type serverEntry struct {
 // UpsertServer adds or updates the MCP server entry in an IDE config file.
 // Returns the action taken.
 func UpsertServer(configPath, topLevelKey, serverName, binaryPath string) (Action, error) {
-	// Check if the parent directory exists (IDE installed?)
-	dir := filepath.Dir(configPath)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return ActionSkipped, nil
+	return UpsertServerWithOpts(configPath, topLevelKey, serverName, binaryPath, nil, false)
+}
+
+// UpsertServerWithOpts adds or updates the MCP server entry with IDE-specific options.
+func UpsertServerWithOpts(configPath, topLevelKey, serverName, binaryPath string, extraFields map[string]any, needsExistingConfig bool) (Action, error) {
+	if needsExistingConfig {
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+			return ActionSkipped, nil
+		}
+	} else {
+		dir := filepath.Dir(configPath)
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			return ActionSkipped, nil
+		}
 	}
 
 	cf, err := readConfig(configPath)
@@ -45,18 +55,8 @@ func UpsertServer(configPath, topLevelKey, serverName, binaryPath string) (Actio
 	}
 
 	entry := map[string]any{"command": binaryPath}
-	// Zed requires args and env fields to be present.
-	if topLevelKey == "context_servers" {
-		entry["args"] = []any{}
-		entry["env"] = map[string]any{}
-	}
-
-	// Copilot CLI requires type, args, env, and tools fields.
-	if strings.Contains(configPath, ".copilot") {
-		entry["type"] = "local"
-		entry["args"] = []any{}
-		entry["env"] = map[string]any{}
-		entry["tools"] = []any{"*"}
+	for k, v := range extraFields {
+		entry[k] = v
 	}
 
 	existing, hasExisting := servers[serverName]

@@ -85,122 +85,122 @@ func Register(srv *mcp.Server) {
     }, handleGatherRemoteLogs)
 }
 
-func handleReadLogs(_ context.Context, _ *mcp.CallToolRequest, input ReadLogsInput) (*mcp.CallToolResult, ReadLogsOutput, error) {
-    result, err := RunReadLogs(input)
-    if err != nil {
-        return nil, ReadLogsOutput{}, err
-    }
-    return nil, result, nil
+func handleReadLogs(_ context.Context, _ *mcp.CallToolRequest, input ReadLogsInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunReadLogs(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
 }
 
-func handleTailLogs(_ context.Context, _ *mcp.CallToolRequest, input TailLogsInput) (*mcp.CallToolResult, TailLogsOutput, error) {
-    result, err := RunTailLogs(input)
-    if err != nil {
-        return nil, TailLogsOutput{}, err
-    }
-    return nil, result, nil
+func handleTailLogs(_ context.Context, _ *mcp.CallToolRequest, input TailLogsInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunTailLogs(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
 }
 
-func handleSearchLogs(_ context.Context, _ *mcp.CallToolRequest, input SearchLogsInput) (*mcp.CallToolResult, SearchLogsOutput, error) {
-    result, err := RunSearchLogs(input)
-    if err != nil {
-        return nil, SearchLogsOutput{}, err
-    }
-    return nil, result, nil
+func handleSearchLogs(_ context.Context, _ *mcp.CallToolRequest, input SearchLogsInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunSearchLogs(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
 }
 
-func handleParseLogs(_ context.Context, _ *mcp.CallToolRequest, input ParseLogsInput) (*mcp.CallToolResult, ParseLogsOutput, error) {
-    result, err := RunParseLogs(input)
-    if err != nil {
-        return nil, ParseLogsOutput{}, err
-    }
-    return nil, result, nil
+func handleParseLogs(_ context.Context, _ *mcp.CallToolRequest, input ParseLogsInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunParseLogs(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
 }
 
-func handleFilterLogs(_ context.Context, _ *mcp.CallToolRequest, input FilterLogsInput) (*mcp.CallToolResult, FilterLogsOutput, error) {
-    result, err := RunFilterLogs(input)
-    if err != nil {
-        return nil, FilterLogsOutput{}, err
-    }
-    return nil, result, nil
+func handleFilterLogs(_ context.Context, _ *mcp.CallToolRequest, input FilterLogsInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunFilterLogs(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
 }
 
-func handleExtractErrors(_ context.Context, _ *mcp.CallToolRequest, input ExtractErrorsInput) (*mcp.CallToolResult, ExtractErrorsOutput, error) {
-    result, err := RunExtractErrors(input)
-    if err != nil {
-        return nil, ExtractErrorsOutput{}, err
-    }
-    return nil, result, nil
+func handleExtractErrors(_ context.Context, _ *mcp.CallToolRequest, input ExtractErrorsInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunExtractErrors(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
 }
 
-func handleSummarizeLogs(_ context.Context, _ *mcp.CallToolRequest, input SummarizeLogsInput) (*mcp.CallToolResult, SummarizeLogsOutput, error) {
-    result, err := RunSummarizeLogs(input)
-    if err != nil {
-        return nil, SummarizeLogsOutput{}, err
-    }
-    return nil, result, nil
+func handleSummarizeLogs(_ context.Context, _ *mcp.CallToolRequest, input SummarizeLogsInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunSummarizeLogs(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
 }
 
-func handleDetectAnomalies(_ context.Context, _ *mcp.CallToolRequest, input DetectAnomaliesInput) (*mcp.CallToolResult, DetectAnomaliesOutput, error) {
-    result, err := RunDetectAnomalies(input)
-    if err != nil {
-        return nil, DetectAnomaliesOutput{}, err
-    }
-    return nil, result, nil
+func handleDetectAnomalies(_ context.Context, _ *mcp.CallToolRequest, input DetectAnomaliesInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunDetectAnomalies(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
 }
 
-func handleTimeline(_ context.Context, _ *mcp.CallToolRequest, input TimelineInput) (*mcp.CallToolResult, TimelineOutput, error) {
-    result, err := RunTimeline(input)
-    if err != nil {
-        return nil, TimelineOutput{}, err
-    }
-    return nil, result, nil
+func handleTimeline(_ context.Context, _ *mcp.CallToolRequest, input TimelineInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunTimeline(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
 }
 
-func handleCorrelateLogs(_ context.Context, _ *mcp.CallToolRequest, input CorrelateLogsInput) (*mcp.CallToolResult, CorrelateLogsOutput, error) {
-    result, err := RunCorrelateLogs(input)
-    if err != nil {
-        return nil, CorrelateLogsOutput{}, err
-    }
-    return nil, result, nil
+func handleCorrelateLogs(_ context.Context, _ *mcp.CallToolRequest, input CorrelateLogsInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunCorrelateLogs(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
 }
 
-func handleDecompressFile(_ context.Context, _ *mcp.CallToolRequest, input DecompressFileInput) (*mcp.CallToolResult, DecompressFileOutput, error) {
-    result, err := RunDecompressFile(input)
-    if err != nil {
-        return nil, DecompressFileOutput{}, err
-    }
-    return nil, result, nil
+func handleDecompressFile(_ context.Context, _ *mcp.CallToolRequest, input DecompressFileInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunDecompressFile(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
 }
 
-func handleDiffLogs(_ context.Context, _ *mcp.CallToolRequest, input DiffLogsInput) (*mcp.CallToolResult, DiffLogsOutput, error) {
-    result, err := RunDiffLogs(input)
-    if err != nil {
-        return nil, DiffLogsOutput{}, err
-    }
-    return nil, result, nil
+func handleDiffLogs(_ context.Context, _ *mcp.CallToolRequest, input DiffLogsInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunDiffLogs(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
 }
 
-func handleRunRemoteCommand(_ context.Context, _ *mcp.CallToolRequest, input RunRemoteCommandInput) (*mcp.CallToolResult, RunRemoteCommandOutput, error) {
-    result, err := RunRunRemoteCommand(input)
-    if err != nil {
-        return nil, RunRemoteCommandOutput{}, err
-    }
-    return nil, result, nil
+func handleRunRemoteCommand(_ context.Context, _ *mcp.CallToolRequest, input RunRemoteCommandInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunRunRemoteCommand(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
 }
 
-func handleDiscoverRemoteLogs(_ context.Context, _ *mcp.CallToolRequest, input DiscoverRemoteLogsInput) (*mcp.CallToolResult, DiscoverRemoteLogsOutput, error) {
-    result, err := RunDiscoverRemoteLogs(input)
-    if err != nil {
-        return nil, DiscoverRemoteLogsOutput{}, err
-    }
-    return nil, result, nil
+func handleDiscoverRemoteLogs(_ context.Context, _ *mcp.CallToolRequest, input DiscoverRemoteLogsInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunDiscoverRemoteLogs(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
 }
 
-func handleGatherRemoteLogs(_ context.Context, _ *mcp.CallToolRequest, input GatherRemoteLogsInput) (*mcp.CallToolResult, GatherRemoteLogsOutput, error) {
-    result, err := RunGatherRemoteLogs(input)
-    if err != nil {
-        return nil, GatherRemoteLogsOutput{}, err
-    }
-    return nil, result, nil
+func handleGatherRemoteLogs(_ context.Context, _ *mcp.CallToolRequest, input GatherRemoteLogsInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunGatherRemoteLogs(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
 }
