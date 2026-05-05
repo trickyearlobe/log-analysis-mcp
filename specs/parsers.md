@@ -13,7 +13,7 @@ The auto-detection engine determines the format of a log file by scoring each pa
 5. If no parser scores ≥ 0.5, return `"unknown"` format with raw-line fallback.
 6. If `format_hint` is provided and is not `"auto"`, skip auto-detection and use the specified parser directly.
 
-**Parser Priority (tiebreaker):** JSON > Syslog RFC 5424 > Syslog RFC 3164 > Apache Combined > Apache Common
+**Parser Priority (tiebreaker):** JSON > Erlang SASL > Habitat Sup > Syslog RFC 5424 > journalctl ISO > Syslog RFC 3164 > Apache Combined > Apache Common
 
 **Parser interface:**
 
@@ -228,3 +228,80 @@ When multiline combining is active, parsed records gain additional fields:
 | `pythonTBRe`     | `^Traceback \(most recent call last\):`    |
 | `dotnetStackRe`  | `^   at `                                  |
 | `continuationRe` | `^\s+`                                     |
+
+### Erlang/OTP SASL Parser (`erlang.go`)
+
+Parses Erlang/OTP SASL report headers. Continuation lines (Erlang term syntax) are not parsed individually — use `record_separator` with pattern `^=` to group multi-line SASL entries.
+
+**Format:**
+
+```
+=ERROR REPORT==== 15-Jan-2025::10:00:01 ===
+```
+
+RE2 regex pattern:
+```
+^=([A-Z][A-Z ]+)=+\s+(\d{1,2}-[A-Za-z]{3}-\d{4})::(\d{2}:\d{2}:\d{2})\s+===\s*$
+```
+
+Extracted fields:
+- `timestamp`: Combined from date (`DD-Mon-YYYY`) and time (`HH:MM:SS`)
+- `level`: Derived from report type
+- `message`: The report type string (e.g., "ERROR REPORT")
+
+**Level Mapping:**
+
+| Report Type | Normalized Level |
+|---|---|
+| ERROR REPORT | ERROR |
+| CRASH REPORT | FATAL |
+| SUPERVISOR REPORT | WARN |
+| WARNING REPORT | WARN |
+| PROGRESS REPORT | INFO |
+
+**Detection note:** SASL files have few header lines among many continuations. Detect returns ≥0.6 if any header lines are found in the sample.
+
+### Chef Habitat Supervisor Parser (`habitat.go`)
+
+Parses Chef Habitat supervisor (`hab-sup`) log output.
+
+**Format:**
+
+```
+hab-sup(MN): 2025-01-15T10:00:01.001234Z INFO hab_sup::manager: Loading service
+```
+
+RE2 regex pattern:
+```
+^hab-sup\(([^)]+)\):\s+(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)\s+(DEBUG|INFO|WARN|ERROR|TRACE)\s+(\S+)\s+(.+)$
+```
+
+Extracted fields:
+- `timestamp`: ISO 8601 UTC with optional microseconds
+- `level`: Direct mapping (DEBUG, INFO, WARN, ERROR, TRACE)
+- `source`: Rust module path (trailing `:` stripped)
+- `message`: Rest of line after module
+- `extra_fields.worker`: Supervisor mode (e.g., "MN")
+
+### journalctl short-iso Parser (`journalctl.go`)
+
+Parses `journalctl --output=short-iso` format.
+
+**Format:**
+
+```
+2025-01-15T10:00:01+0000 myhost sshd[1234]: Accepted publickey for user
+```
+
+RE2 regex pattern:
+```
+^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?[+-]\d{4})\s+(\S+)\s+([^\[ :]+)(?:\[(\d+)\])?:\s+(.*)$
+```
+
+Extracted fields:
+- `timestamp`: ISO 8601 with timezone offset (`±HHMM`, no colon)
+- `level`: nil (not present in short-iso output)
+- `source`: Process/program name
+- `message`: Full message body
+- `extra_fields.hostname`: System hostname
+- `extra_fields.pid`: Process ID (optional — kernel messages omit it)

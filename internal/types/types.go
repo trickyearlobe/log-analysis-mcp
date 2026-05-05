@@ -24,6 +24,9 @@ const (
     LogFormatApacheCommon   LogFormat = "apache-common"
     LogFormatNginx          LogFormat = "nginx"
     LogFormatJSON           LogFormat = "json"
+    LogFormatErlangSASL     LogFormat = "erlang-sasl"
+    LogFormatHabitatSup     LogFormat = "habitat-sup"
+    LogFormatJournalISO     LogFormat = "journalctl-short-iso"
     LogFormatUnknown        LogFormat = "unknown"
 )
 

@@ -3,11 +3,14 @@ package parsers
 import "github.com/trickyearlobe/log-analysis-mcp/internal/types"
 
 // registeredParsers returns parsers in priority order for tiebreaking.
-// Priority: JSON > Syslog RFC 5424 > Syslog RFC 3164 > Apache Combined > Apache Common.
+// Priority: JSON > Erlang SASL > Habitat Sup > Syslog RFC 5424 > journalctl ISO > Syslog RFC 3164 > Apache Combined > Apache Common.
 func registeredParsers() []Parser {
 	return []Parser{
 		NewJSONParser(),
+		NewErlangSASLParser(),
+		NewHabitatSupParser(),
 		NewSyslogRFC5424Parser(),
+		NewJournalISOParser(),
 		NewSyslogRFC3164Parser(),
 		NewApacheCombinedParser(),
 		NewApacheCommonParser(),
