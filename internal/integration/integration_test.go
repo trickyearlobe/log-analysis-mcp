@@ -226,10 +226,11 @@ func TestListToolsReturnsAll15(t *testing.T) {
         "log_discover_remote": false,
         "log_gather_remote":   false,
         "log_list_archive":    false,
+        "log_count_by_level":  false,
     }
 
-    if len(resp.Tools) != 16 {
-        t.Errorf("expected 16 tools, got %d", len(resp.Tools))
+    if len(resp.Tools) != 17 {
+        t.Errorf("expected 17 tools, got %d", len(resp.Tools))
     }
 
     for _, tool := range resp.Tools {

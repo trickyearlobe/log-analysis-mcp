@@ -88,6 +88,11 @@ func Register(srv *mcp.Server) {
         Name:        "log_list_archive",
         Description: "List the contents of an archive file (zip, tar.gz, tar.bz2). Returns entry names, sizes, and modification times. Use to discover which log files exist inside an archive before extracting them.",
     }, handleListArchive)
+
+    mcp.AddTool(srv, &mcp.Tool{
+        Name:        "log_count_by_level",
+        Description: "Count log entries by severity level. A fast single-pass tool for multi-file triage — returns level counts with minimal output to save context tokens.",
+    }, handleCountByLevel)
 }
 
 func handleReadLogs(_ context.Context, _ *mcp.CallToolRequest, input ReadLogsInput) (*mcp.CallToolResult, any, error) {
@@ -212,6 +217,14 @@ func handleGatherRemoteLogs(_ context.Context, _ *mcp.CallToolRequest, input Gat
 
 func handleListArchive(_ context.Context, _ *mcp.CallToolRequest, input ListArchiveInput) (*mcp.CallToolResult, any, error) {
 	result, err := RunListArchive(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
+}
+
+func handleCountByLevel(_ context.Context, _ *mcp.CallToolRequest, input CountByLevelInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunCountByLevel(input)
 	if err != nil {
 		return nil, nil, err
 	}
