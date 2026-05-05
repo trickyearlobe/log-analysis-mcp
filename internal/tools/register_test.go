@@ -12,7 +12,7 @@ func TestRegisterDoesNotPanic(t *testing.T) {
 		Name:    "log-analysis-mcp",
 		Version: "test",
 	}, nil)
-	Register(srv)
+	Register(srv, t.TempDir())
 }
 
 func TestAllToolsOmitOutputSchema(t *testing.T) {
@@ -20,7 +20,7 @@ func TestAllToolsOmitOutputSchema(t *testing.T) {
 		Name:    "log-analysis-mcp",
 		Version: "test",
 	}, nil)
-	Register(srv)
+	Register(srv, t.TempDir())
 
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 
@@ -48,8 +48,8 @@ func TestAllToolsOmitOutputSchema(t *testing.T) {
 		t.Fatalf("ListTools: %v", err)
 	}
 
-	if len(result.Tools) != 18 {
-		t.Fatalf("expected 18 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 19 {
+		t.Fatalf("expected 19 tools, got %d", len(result.Tools))
 	}
 
 	for _, tool := range result.Tools {

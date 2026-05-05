@@ -27,7 +27,7 @@ func setupTestServer(t *testing.T) *mcp.ClientSession {
 		Version: "test",
 	}, nil)
 
-	tools.Register(srv)
+	tools.Register(srv, t.TempDir())
 	resources.Register(srv)
 	prompts.Register(srv)
 

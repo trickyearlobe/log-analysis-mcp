@@ -1,4 +1,4 @@
-// Package tools implements the 18 MCP tool handlers for log analysis.
+// Package tools implements the 19 MCP tool handlers for log analysis.
 package tools
 
 import (
@@ -8,7 +8,7 @@ import (
 )
 
 // Register adds all tool definitions to the MCP server.
-func Register(srv *mcp.Server) {
+func Register(srv *mcp.Server, metricsDir string) {
     mcp.AddTool(srv, &mcp.Tool{
         Name:        "log_read",
         Description: "Read a log file with pagination support. Returns lines from the specified file along with metadata about file size and total line count. Use start_line and num_lines to paginate through large files.",
@@ -98,6 +98,11 @@ func Register(srv *mcp.Server) {
         Name:        "log_file_info",
         Description: "Get lightweight metadata about a log file: size, line count, first/last timestamps, compression type, and binary detection. Use before committing to expensive parsing.",
     }, handleFileInfo)
+
+    mcp.AddTool(srv, &mcp.Tool{
+        Name:        "log_metrics",
+        Description: "Query tool call metrics for self-diagnosis. Returns per-tool latency percentiles, call counts, error rates, and warning frequencies. Use to identify slow tools, broken workflows, or context pressure from large responses.",
+    }, makeLogMetricsHandler(metricsDir))
 }
 
 func handleReadLogs(_ context.Context, _ *mcp.CallToolRequest, input ReadLogsInput) (*mcp.CallToolResult, any, error) {
