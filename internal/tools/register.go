@@ -56,7 +56,7 @@ func Register(srv *mcp.Server) {
 
     mcp.AddTool(srv, &mcp.Tool{
         Name:        "log_correlate",
-        Description: "Correlate events across multiple log files by a shared field like request_id or trace_id.",
+        Description: "Correlate events across multiple log files. Supports two modes: (1) correlation by a shared field like request_id or trace_id, and (2) time-window correlation that groups events occurring within N seconds of each other across files — useful when files have no shared fields.",
     }, handleCorrelateLogs)
 
     mcp.AddTool(srv, &mcp.Tool{
