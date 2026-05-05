@@ -29,7 +29,9 @@ const (
     LogFormatJournalISO     LogFormat = "journalctl-short-iso"
     LogFormatGoLogrusBracket LogFormat = "go-logrus-bracket"
     LogFormatJavaLogback    LogFormat = "java-logback"
+    LogFormatJavaLogbackBracket LogFormat = "java-logback-bracket"
     LogFormatSpringBoot     LogFormat = "spring-boot"
+    LogFormatKubernetesCRI  LogFormat = "kubernetes-cri"
     LogFormatUnknown        LogFormat = "unknown"
 )
 
