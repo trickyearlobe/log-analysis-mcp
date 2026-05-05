@@ -10,8 +10,9 @@ import (
 // criPrefixRe matches the Kubernetes Container Runtime Interface log line prefix:
 //   <ISO-timestamp> (stdout|stderr) (F|P) <rest>
 // where F = full line, P = partial (continuation).
+// Uses a single space after the flag to preserve leading whitespace in inner content.
 var criPrefixRe = regexp.MustCompile(
-	`^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+\S*)\s+(stdout|stderr)\s+([FP])\s+(.*)$`)
+	`^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+\S*)\s+(stdout|stderr)\s+([FP]) (.*)$`)
 
 // innerParsers are tried in order against the CRI-stripped inner content.
 var innerParsers = []Parser{
@@ -43,6 +44,12 @@ func (p *KubernetesCRIParser) Parse(line string) *types.ParsedLogEntry {
 	criTimestamp := m[1]
 	stream := m[2]
 	inner := m[4]
+
+	// If inner content is a stack trace continuation, return nil so the
+	// MultilineCombiner can attach it to the previous entry.
+	if isContinuation(inner) {
+		return nil
+	}
 
 	// Try inner parsers for structured extraction
 	for _, ip := range innerParsers {

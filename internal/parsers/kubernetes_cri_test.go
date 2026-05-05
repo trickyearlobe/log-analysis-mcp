@@ -1,6 +1,7 @@
 package parsers
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/trickyearlobe/log-analysis-mcp/internal/types"
@@ -167,5 +168,82 @@ func TestKubernetesCRITimestampOverride(t *testing.T) {
 	}
 	if result.Timestamp == nil || *result.Timestamp != "2026-05-05T03:00:00.005491542+01:00" {
 		t.Errorf("timestamp = %v, want CRI timestamp", result.Timestamp)
+	}
+}
+
+func TestKubernetesCRIStackTraceContinuation(t *testing.T) {
+	p := NewKubernetesCRIParser()
+
+	// Stack trace lines wrapped in CRI should return nil (not a new entry)
+	// so MultilineCombiner can attach them to the previous entry.
+	stackLines := []string{
+		`2026-05-05T14:30:00.001000000+01:00 stderr F 	at com.example.service.UserService.getUser(UserService.java:42)`,
+		`2026-05-05T14:30:00.001000000+01:00 stderr F 	at com.example.controller.UserController.handle(UserController.java:15)`,
+		`2026-05-05T14:30:00.001000000+01:00 stderr F Caused by: java.sql.SQLException: Connection refused`,
+		`2026-05-05T14:30:00.001000000+01:00 stderr F    at System.Data.SqlClient.Connect(Connection.cs:44)`,
+	}
+
+	for _, line := range stackLines {
+		result := p.Parse(line)
+		if result != nil {
+			t.Errorf("expected nil for stack trace line, got %+v for: %s", result, line[:80])
+		}
+	}
+
+	// Normal lines should still parse
+	normalLine := `2026-05-05T14:30:00.000000000+01:00 stderr F [05-05-2026 13:30:00.000] [main] [ERROR] [abc] [com.example.App] NullPointerException`
+	result := p.Parse(normalLine)
+	if result == nil {
+		t.Fatal("expected non-nil for normal error line")
+	}
+}
+
+func TestKubernetesCRIMultilineCombiner(t *testing.T) {
+	p := NewKubernetesCRIParser()
+	mc := NewMultilineCombiner(p)
+
+	lines := []string{
+		`2026-05-05T14:30:00.000000000+01:00 stderr F [05-05-2026 13:30:00.000] [http-1] [ERROR] [abc123] [com.example.App] NullPointerException`,
+		`2026-05-05T14:30:00.001000000+01:00 stderr F 	at com.example.service.UserService.getUser(UserService.java:42)`,
+		`2026-05-05T14:30:00.001000000+01:00 stderr F 	at com.example.controller.UserController.handle(UserController.java:15)`,
+		`2026-05-05T14:30:00.002000000+01:00 stderr F Caused by: java.sql.SQLException: Connection refused`,
+		`2026-05-05T14:30:00.002000000+01:00 stderr F 	at com.example.db.Pool.getConnection(Pool.java:99)`,
+		`2026-05-05T14:30:01.000000000+01:00 stdout F [05-05-2026 13:30:01.000] [http-2] [INFO ] [def456] [com.example.App] Request completed`,
+	}
+
+	entries := mc.Combine(lines, 1)
+
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(entries))
+	}
+
+	// First entry should have the stack trace attached
+	first := entries[0]
+	if first.Level == nil || *first.Level != types.LogLevelError {
+		t.Errorf("first level = %v, want ERROR", first.Level)
+	}
+	if first.LineCount != 5 {
+		t.Errorf("first LineCount = %d, want 5", first.LineCount)
+	}
+	if first.StackTrace == "" {
+		t.Error("first entry should have stack trace")
+	}
+	if !strings.Contains(first.StackTrace, "UserService.java:42") {
+		t.Errorf("stack trace missing UserService reference: %q", first.StackTrace)
+	}
+	if !strings.Contains(first.StackTrace, "Caused by:") {
+		t.Errorf("stack trace missing Caused by: %q", first.StackTrace)
+	}
+
+	// Second entry should be clean INFO with no stack trace
+	second := entries[1]
+	if second.Level == nil || *second.Level != types.LogLevelInfo {
+		t.Errorf("second level = %v, want INFO", second.Level)
+	}
+	if second.StackTrace != "" {
+		t.Errorf("second entry should have no stack trace, got %q", second.StackTrace)
+	}
+	if second.LineCount != 1 {
+		t.Errorf("second LineCount = %d, want 1", second.LineCount)
 	}
 }
