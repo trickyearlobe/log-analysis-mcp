@@ -225,10 +225,11 @@ func TestListToolsReturnsAll15(t *testing.T) {
         "log_run_remote_command":   false,
         "log_discover_remote": false,
         "log_gather_remote":   false,
+        "log_list_archive":    false,
     }
 
-    if len(resp.Tools) != 15 {
-        t.Errorf("expected 15 tools, got %d", len(resp.Tools))
+    if len(resp.Tools) != 16 {
+        t.Errorf("expected 16 tools, got %d", len(resp.Tools))
     }
 
     for _, tool := range resp.Tools {

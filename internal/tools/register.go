@@ -1,4 +1,4 @@
-// Package tools implements the 15 MCP tool handlers for log analysis.
+// Package tools implements the 16 MCP tool handlers for log analysis.
 package tools
 
 import (
@@ -83,6 +83,11 @@ func Register(srv *mcp.Server) {
         Name:        "log_gather_remote",
         Description: "Download log files and export systemd journal units from remote hosts to local temporary files. Returns local paths that can be passed directly to other analysis tools like log_summarize, log_extract_errors, log_correlate, and log_diff.",
     }, handleGatherRemoteLogs)
+
+    mcp.AddTool(srv, &mcp.Tool{
+        Name:        "log_list_archive",
+        Description: "List the contents of an archive file (zip, tar.gz, tar.bz2). Returns entry names, sizes, and modification times. Use to discover which log files exist inside an archive before extracting them.",
+    }, handleListArchive)
 }
 
 func handleReadLogs(_ context.Context, _ *mcp.CallToolRequest, input ReadLogsInput) (*mcp.CallToolResult, any, error) {
@@ -199,6 +204,14 @@ func handleDiscoverRemoteLogs(_ context.Context, _ *mcp.CallToolRequest, input D
 
 func handleGatherRemoteLogs(_ context.Context, _ *mcp.CallToolRequest, input GatherRemoteLogsInput) (*mcp.CallToolResult, any, error) {
 	result, err := RunGatherRemoteLogs(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, result, nil
+}
+
+func handleListArchive(_ context.Context, _ *mcp.CallToolRequest, input ListArchiveInput) (*mcp.CallToolResult, any, error) {
+	result, err := RunListArchive(input)
 	if err != nil {
 		return nil, nil, err
 	}

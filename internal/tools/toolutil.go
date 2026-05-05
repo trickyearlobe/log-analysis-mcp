@@ -1,4 +1,4 @@
-// Package tools implements the 10 MCP tool handlers for log analysis.
+// Package tools implements the 16 MCP tool handlers for log analysis.
 package tools
 
 import (
