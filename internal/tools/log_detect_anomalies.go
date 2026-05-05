@@ -21,6 +21,8 @@ type DetectAnomaliesInput struct {
 	Path          string `json:"path"                    jsonschema:"Path to the log file"`
 	WindowMinutes int    `json:"window_minutes,omitempty" jsonschema:"Time window in minutes for rate analysis"`
 	Sensitivity   string `json:"sensitivity,omitempty"    jsonschema:"Detection sensitivity level (low, medium, high)"`
+	MaxResults    int    `json:"max_results,omitempty"    jsonschema:"Maximum number of anomalies to return (max 200)"`
+	Offset        int    `json:"offset,omitempty"         jsonschema:"Number of anomalies to skip for pagination"`
 }
 
 // AnalysisMetadata contains summary statistics about the anomaly detection run.
@@ -35,7 +37,10 @@ type AnalysisMetadata struct {
 // DetectAnomaliesOutput is the structured result of the log_detect_anomalies tool.
 type DetectAnomaliesOutput struct {
 	Anomalies        []types.Anomaly  `json:"anomalies"`
+	TotalAnomalies   int              `json:"total_anomalies"`
 	AnalysisMetadata AnalysisMetadata `json:"analysis_metadata"`
+	HasMore          bool             `json:"has_more"`
+	NextOffset       int              `json:"next_offset"`
 }
 
 // sensitivityThresholds holds multiplier thresholds for a given sensitivity level.
@@ -84,6 +89,11 @@ func RunDetectAnomalies(input DetectAnomaliesInput) (DetectAnomaliesOutput, erro
 	input.WindowMinutes = DefaultInt(input.WindowMinutes, 5)
 	input.WindowMinutes = ClampInt(input.WindowMinutes, 1, 60)
 	input.Sensitivity = DefaultString(input.Sensitivity, "medium")
+	input.MaxResults = DefaultInt(input.MaxResults, 50)
+	input.MaxResults = ClampInt(input.MaxResults, 1, 200)
+	if input.Offset < 0 {
+		input.Offset = 0
+	}
 
 	thresholds, ok := thresholdMap[input.Sensitivity]
 	if !ok {
@@ -401,7 +411,8 @@ func RunDetectAnomalies(input DetectAnomaliesInput) (DetectAnomaliesOutput, erro
 		}
 	}
 
-	// Sort anomalies: high first, then medium, then low. Within same severity, by time.
+	// Sort anomalies: high first, then medium, then low. Within same severity,
+	// by time, then type, then description for deterministic pagination.
 	severityRank := map[string]int{"high": 0, "medium": 1, "low": 2}
 	sort.SliceStable(anomalies, func(i, j int) bool {
 		ri := severityRank[anomalies[i].Severity]
@@ -409,13 +420,33 @@ func RunDetectAnomalies(input DetectAnomaliesInput) (DetectAnomaliesOutput, erro
 		if ri != rj {
 			return ri < rj
 		}
-		return anomalies[i].TimeRange.Start < anomalies[j].TimeRange.Start
+		if anomalies[i].TimeRange.Start != anomalies[j].TimeRange.Start {
+			return anomalies[i].TimeRange.Start < anomalies[j].TimeRange.Start
+		}
+		if anomalies[i].Type != anomalies[j].Type {
+			return anomalies[i].Type < anomalies[j].Type
+		}
+		return anomalies[i].Description < anomalies[j].Description
 	})
+
+	// Apply pagination: offset then cap.
+	totalAnomalies := len(anomalies)
+	if input.Offset >= len(anomalies) {
+		anomalies = []types.Anomaly{}
+	} else {
+		anomalies = anomalies[input.Offset:]
+		if len(anomalies) > input.MaxResults {
+			anomalies = anomalies[:input.MaxResults]
+		}
+	}
 
 	// Ensure non-nil slice for JSON marshaling.
 	if anomalies == nil {
 		anomalies = []types.Anomaly{}
 	}
+
+	hasMore := totalAnomalies > input.Offset+len(anomalies)
+	nextOffset := input.Offset + len(anomalies)
 
 	// Compute time span.
 	var timeSpanHours float64
@@ -424,7 +455,8 @@ func RunDetectAnomalies(input DetectAnomaliesInput) (DetectAnomaliesOutput, erro
 	}
 
 	return DetectAnomaliesOutput{
-		Anomalies: anomalies,
+		Anomalies:      anomalies,
+		TotalAnomalies: totalAnomalies,
 		AnalysisMetadata: AnalysisMetadata{
 			TotalLinesAnalyzed: totalLines,
 			TimeSpanHours:      timeSpanHours,
@@ -432,6 +464,8 @@ func RunDetectAnomalies(input DetectAnomaliesInput) (DetectAnomaliesOutput, erro
 			Sensitivity:        input.Sensitivity,
 			WindowsAnalyzed:    numWindows,
 		},
+		HasMore:    hasMore,
+		NextOffset: nextOffset,
 	}, nil
 }
 

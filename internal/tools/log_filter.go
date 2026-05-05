@@ -23,6 +23,7 @@ type FilterLogsInput struct {
 	Source          string   `json:"source,omitempty"          jsonschema:"Regex pattern to match the source/component field"`
 	MessagePattern  string   `json:"message_pattern,omitempty" jsonschema:"Regex pattern to match the message content"`
 	MaxResults      int      `json:"max_results,omitempty"     jsonschema:"Maximum entries to return (max 1000)"`
+	Offset          int      `json:"offset,omitempty"          jsonschema:"Number of matched entries to skip for pagination"`
 	RecordSeparator string   `json:"record_separator,omitempty" jsonschema:"RE2 regex matching the start of a new log record (returns full records on match)"`
 }
 
@@ -50,6 +51,8 @@ type FilterLogsOutput struct {
 	TotalScanned   int             `json:"total_scanned"`
 	AppliedFilters AppliedFilters  `json:"applied_filters"`
 	Truncated      bool            `json:"truncated"`
+	HasMore        bool            `json:"has_more"`
+	NextOffset     int             `json:"next_offset"`
 }
 
 // RunFilterLogs filters parsed log entries by level, time range, source, and
@@ -58,6 +61,9 @@ func RunFilterLogs(input FilterLogsInput) (FilterLogsOutput, error) {
 	// Apply defaults and clamp.
 	input.MaxResults = DefaultInt(input.MaxResults, 100)
 	input.MaxResults = ClampInt(input.MaxResults, 1, 1000)
+	if input.Offset < 0 {
+		input.Offset = 0
+	}
 
 	// Validate file access.
 	if err := CheckFileAccess(input.Path); err != nil {
@@ -146,7 +152,7 @@ func RunFilterLogs(input FilterLogsInput) (FilterLogsOutput, error) {
 
 	if recordSep != nil {
 		entries, totalMatched, totalScanned, err = filterRecordMode(
-			input.Path, recordSep, parser, input.MaxResults,
+			input.Path, recordSep, parser, input.MaxResults, input.Offset,
 			hasLevelFilter, levelSet, hasAfter, afterTime, hasBefore, beforeTime,
 			sourceRe, messageRe,
 		)
@@ -155,7 +161,7 @@ func RunFilterLogs(input FilterLogsInput) (FilterLogsOutput, error) {
 		}
 	} else {
 		entries, totalMatched, totalScanned, err = filterLineMode(
-			input.Path, parser, input.MaxResults,
+			input.Path, parser, input.MaxResults, input.Offset,
 			hasLevelFilter, levelSet, hasAfter, afterTime, hasBefore, beforeTime,
 			sourceRe, messageRe,
 		)
@@ -168,6 +174,9 @@ func RunFilterLogs(input FilterLogsInput) (FilterLogsOutput, error) {
 		entries = []FilteredEntry{}
 	}
 
+	hasMore := totalMatched > input.Offset+len(entries)
+	nextOffset := input.Offset + len(entries)
+
 	return FilterLogsOutput{
 		Entries:      entries,
 		TotalMatched: totalMatched,
@@ -177,13 +186,15 @@ func RunFilterLogs(input FilterLogsInput) (FilterLogsOutput, error) {
 			After: input.After,
 			Before: input.Before,
 		},
-		Truncated: totalMatched > len(entries),
+		Truncated:  hasMore,
+		HasMore:    hasMore,
+		NextOffset: nextOffset,
 	}, nil
 }
 
 // filterLineMode streams the file line-by-line and applies filters.
 func filterLineMode(
-	path string, parser parsers.Parser, maxResults int,
+	path string, parser parsers.Parser, maxResults, offset int,
 	hasLevelFilter bool, levelSet map[string]bool,
 	hasAfter bool, afterTime time.Time, hasBefore bool, beforeTime time.Time,
 	sourceRe, messageRe *regexp.Regexp,
@@ -212,7 +223,7 @@ func filterLineMode(
 			}
 
 			totalMatched++
-			if len(entries) < maxResults {
+			if totalMatched > offset && len(entries) < maxResults {
 				entries = append(entries, FilteredEntry{
 					LineNumber: lr.LineNumber,
 					Timestamp:  parsed.Timestamp,
@@ -236,7 +247,7 @@ func filterLineMode(
 // Structured fields (level, timestamp, source) come from the first line.
 // message_pattern matches against the full record text.
 func filterRecordMode(
-	path string, sep *regexp.Regexp, parser parsers.Parser, maxResults int,
+	path string, sep *regexp.Regexp, parser parsers.Parser, maxResults, offset int,
 	hasLevelFilter bool, levelSet map[string]bool,
 	hasAfter bool, afterTime time.Time, hasBefore bool, beforeTime time.Time,
 	sourceRe, messageRe *regexp.Regexp,
@@ -273,7 +284,7 @@ func filterRecordMode(
 		}
 
 		totalMatched++
-		if len(entries) < maxResults {
+		if totalMatched > offset && len(entries) < maxResults {
 			entries = append(entries, FilteredEntry{
 				LineNumber: rec.StartLine,
 				Timestamp:  parsed.Timestamp,

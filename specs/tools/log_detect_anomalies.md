@@ -12,6 +12,8 @@
 | `path`           | `string` | Yes      | —          | Path to the log file                                     |
 | `window_minutes` | `int`    | No       | `5`        | Time window size in minutes for rate analysis            |
 | `sensitivity`    | `string` | No       | `"medium"` | Detection sensitivity: low, medium, or high              |
+| `max_results`    | `int`    | No       | `50`       | Maximum number of anomalies to return (max 200)          |
+| `offset`         | `int`    | No       | `0`        | Number of anomalies to skip for pagination               |
 
 ### Go Input Struct
 
@@ -20,6 +22,8 @@ type DetectAnomaliesInput struct {
     Path          string `json:"path"           jsonschema:"required,description=Path to the log file"`
     WindowMinutes int    `json:"window_minutes" jsonschema:"description=Time window in minutes for rate analysis,minimum=1,maximum=60"`
     Sensitivity   string `json:"sensitivity"    jsonschema:"description=Detection sensitivity level,enum=low,enum=medium,enum=high"`
+    MaxResults    int    `json:"max_results"    jsonschema:"description=Maximum number of anomalies to return (max 200),minimum=1,maximum=200"`
+    Offset        int    `json:"offset"         jsonschema:"description=Number of anomalies to skip for pagination"`
 }
 ```
 
@@ -29,6 +33,8 @@ type DetectAnomaliesInput struct {
 | --------------- | ---------- |
 | `WindowMinutes` | `5`        |
 | `Sensitivity`   | `"medium"` |
+| `MaxResults`    | `50`       |
+| `Offset`        | `0`        |
 
 ### Sensitivity Thresholds
 
@@ -78,7 +84,10 @@ type AnalysisMetadata struct {
 
 type DetectAnomaliesOutput struct {
     Anomalies        []Anomaly        `json:"anomalies"`
+    TotalAnomalies   int              `json:"total_anomalies"`
     AnalysisMetadata AnalysisMetadata `json:"analysis_metadata"`
+    HasMore          bool             `json:"has_more"`
+    NextOffset       int              `json:"next_offset"`
 }
 ```
 

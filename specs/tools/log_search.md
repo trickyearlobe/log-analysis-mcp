@@ -15,6 +15,7 @@
 | `case_sensitive` | `bool`   | No       | `false` | Whether the search should be case-sensitive                |
 | `context_lines`  | `int`    | No       | `0`     | Number of lines to include before and after each match     |
 | `max_results`    | `int`    | No       | `50`    | Maximum number of matches to return (max 500)              |
+| `offset`         | `int`    | No       | `0`     | Number of matches to skip for pagination                   |
 
 ### Go Input Struct
 
@@ -26,6 +27,7 @@ type SearchLogsInput struct {
     CaseSensitive bool   `json:"case_sensitive" jsonschema:"description=Case-sensitive search"`
     ContextLines  int    `json:"context_lines"  jsonschema:"description=Lines of context before and after each match,minimum=0,maximum=10"`
     MaxResults    int    `json:"max_results"    jsonschema:"description=Maximum number of matches to return (max 500),minimum=1,maximum=500"`
+    Offset        int    `json:"offset"         jsonschema:"description=Number of matches to skip for pagination"`
 }
 ```
 
@@ -60,6 +62,8 @@ type SearchLogsOutput struct {
     SearchedLines int           `json:"searched_lines"`
     PatternUsed   string        `json:"pattern_used"`
     Truncated     bool          `json:"truncated"`
+    HasMore       bool          `json:"has_more"`
+    NextOffset    int           `json:"next_offset"`
 }
 ```
 

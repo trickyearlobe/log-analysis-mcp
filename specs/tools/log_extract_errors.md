@@ -11,6 +11,7 @@
 | `path`                 | `string` | Yes      | —       | Path to the log file                                 |
 | `include_stack_traces` | `bool`   | No       | `true`  | Whether to capture multiline stack traces            |
 | `max_clusters`         | `int`    | No       | `20`    | Maximum number of error clusters to return (max 100) |
+| `offset`               | `int`    | No       | `0`     | Number of clusters to skip for pagination            |
 
 ## Go Input Struct
 
@@ -19,6 +20,7 @@ type ExtractErrorsInput struct {
     Path               string `json:"path"                 jsonschema:"required,description=Path to the log file"`
     IncludeStackTraces bool   `json:"include_stack_traces" jsonschema:"description=Capture multiline stack traces with errors"`
     MaxClusters        int    `json:"max_clusters"         jsonschema:"description=Maximum number of error clusters to return (max 100),minimum=1,maximum=100"`
+    Offset             int    `json:"offset"               jsonschema:"description=Number of clusters to skip for pagination"`
 }
 ```
 
@@ -68,8 +70,11 @@ type ErrorRate struct {
 type ExtractErrorsOutput struct {
     Clusters       []ErrorCluster `json:"clusters"`
     TotalErrors    int            `json:"total_errors"`
+    TotalClusters  int            `json:"total_clusters"`
     ErrorRate      ErrorRate      `json:"error_rate"`
     LevelsIncluded []string       `json:"levels_included"`
+    HasMore        bool           `json:"has_more"`
+    NextOffset     int            `json:"next_offset"`
 }
 ```
 

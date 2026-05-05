@@ -23,6 +23,7 @@ type ExtractErrorsInput struct {
 	Path               string `json:"path"                           jsonschema:"Path to the log file"`
 	IncludeStackTraces bool   `json:"include_stack_traces,omitempty" jsonschema:"Capture multiline stack traces with errors"`
 	MaxClusters        int    `json:"max_clusters,omitempty"         jsonschema:"Maximum number of error clusters to return (max 100)"`
+	Offset             int    `json:"offset,omitempty"               jsonschema:"Number of clusters to skip for pagination"`
 	SortBy             string `json:"sort_by,omitempty"              jsonschema:"Sort clusters by: count (default) or impact (count × severity weight)"`
 	RecordSeparator    string `json:"record_separator,omitempty"     jsonschema:"RE2 regex matching the start of a new log record (groups multi-line entries)"`
 }
@@ -37,8 +38,11 @@ type ErrorRate struct {
 type ExtractErrorsOutput struct {
 	Clusters       []types.ErrorCluster `json:"clusters"`
 	TotalErrors    int                  `json:"total_errors"`
+	TotalClusters  int                  `json:"total_clusters"`
 	ErrorRate      ErrorRate            `json:"error_rate"`
 	LevelsIncluded []string             `json:"levels_included"`
+	HasMore        bool                 `json:"has_more"`
+	NextOffset     int                  `json:"next_offset"`
 }
 
 // Compiled normalization regexes (RE2-compatible, no lookaheads/lookbehinds).
@@ -143,6 +147,9 @@ func RunExtractErrors(input ExtractErrorsInput) (ExtractErrorsOutput, error) {
 	input.MaxClusters = DefaultInt(input.MaxClusters, 20)
 	input.MaxClusters = ClampInt(input.MaxClusters, 1, 100)
 	input.SortBy = DefaultString(input.SortBy, "count")
+	if input.Offset < 0 {
+		input.Offset = 0
+	}
 
 	if input.SortBy != "count" && input.SortBy != "impact" {
 		return ExtractErrorsOutput{}, fmt.Errorf("log_extract_errors: VALIDATION_ERROR: sort_by must be \"count\" or \"impact\", got %q", input.SortBy)
@@ -242,15 +249,24 @@ func RunExtractErrors(input ExtractErrorsInput) (ExtractErrorsOutput, error) {
 		return clusterSlice[i].Pattern < clusterSlice[j].Pattern
 	})
 
-	// Truncate to MaxClusters.
-	if len(clusterSlice) > input.MaxClusters {
-		clusterSlice = clusterSlice[:input.MaxClusters]
+	// Apply pagination: offset then cap.
+	totalClusters := len(clusterSlice)
+	if input.Offset >= len(clusterSlice) {
+		clusterSlice = []types.ErrorCluster{}
+	} else {
+		clusterSlice = clusterSlice[input.Offset:]
+		if len(clusterSlice) > input.MaxClusters {
+			clusterSlice = clusterSlice[:input.MaxClusters]
+		}
 	}
 
 	// Ensure non-nil slice for JSON marshaling.
 	if clusterSlice == nil {
 		clusterSlice = []types.ErrorCluster{}
 	}
+
+	hasMore := totalClusters > input.Offset+len(clusterSlice)
+	nextOffset := input.Offset + len(clusterSlice)
 
 	// Compute error rate.
 	errRate := ErrorRate{}
@@ -262,8 +278,11 @@ func RunExtractErrors(input ExtractErrorsInput) (ExtractErrorsOutput, error) {
 	return ExtractErrorsOutput{
 		Clusters:       clusterSlice,
 		TotalErrors:    totalErrors,
+		TotalClusters:  totalClusters,
 		ErrorRate:      errRate,
 		LevelsIncluded: []string{"ERROR", "FATAL", "CRITICAL"},
+		HasMore:        hasMore,
+		NextOffset:     nextOffset,
 	}, nil
 }
 

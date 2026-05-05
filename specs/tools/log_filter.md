@@ -16,6 +16,7 @@
 | `source`          | `string`   | No       | —       | Regex pattern to match the source/component field              |
 | `message_pattern` | `string`   | No       | —       | Regex pattern to match the message content                     |
 | `max_results`     | `int`      | No       | `100`   | Maximum number of entries to return (max 1000)                 |
+| `offset`          | `int`      | No       | `0`     | Number of matched entries to skip for pagination               |
 
 ### Go Input Struct
 
@@ -28,6 +29,7 @@ type FilterLogsInput struct {
     Source         string   `json:"source"          jsonschema:"description=Regex pattern to match the source/component field"`
     MessagePattern string   `json:"message_pattern" jsonschema:"description=Regex pattern to match the message content"`
     MaxResults     int      `json:"max_results"     jsonschema:"description=Maximum entries to return (max 1000),minimum=1,maximum=1000"`
+    Offset         int      `json:"offset"          jsonschema:"description=Number of matched entries to skip for pagination"`
 }
 ```
 
@@ -67,6 +69,8 @@ type FilterLogsOutput struct {
     TotalScanned   int             `json:"total_scanned"`
     AppliedFilters AppliedFilters  `json:"applied_filters"`
     Truncated      bool            `json:"truncated"`
+    HasMore        bool            `json:"has_more"`
+    NextOffset     int             `json:"next_offset"`
 }
 ```
 

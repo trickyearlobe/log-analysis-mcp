@@ -19,6 +19,7 @@ type SearchLogsInput struct {
 	CaseSensitive   bool   `json:"case_sensitive,omitempty" jsonschema:"Case-sensitive search"`
 	ContextLines    int    `json:"context_lines,omitempty"  jsonschema:"Lines of context before and after each match (0-10)"`
 	MaxResults      int    `json:"max_results,omitempty"    jsonschema:"Maximum number of matches to return (max 500)"`
+	Offset          int    `json:"offset,omitempty"         jsonschema:"Number of matches to skip for pagination"`
 	RecordSeparator string `json:"record_separator,omitempty" jsonschema:"RE2 regex matching the start of a new log record (returns full records on match)"`
 }
 
@@ -29,6 +30,8 @@ type SearchLogsOutput struct {
 	SearchedLines int                 `json:"searched_lines"`
 	PatternUsed   string              `json:"pattern_used"`
 	Truncated     bool                `json:"truncated"`
+	HasMore       bool                `json:"has_more"`
+	NextOffset    int                 `json:"next_offset"`
 }
 
 // RunSearchLogs searches a log file for lines matching a pattern and returns
@@ -38,6 +41,9 @@ func RunSearchLogs(input SearchLogsInput) (SearchLogsOutput, error) {
 	input.MaxResults = DefaultInt(input.MaxResults, 50)
 	input.MaxResults = ClampInt(input.MaxResults, 1, 500)
 	input.ContextLines = ClampInt(input.ContextLines, 0, 10)
+	if input.Offset < 0 {
+		input.Offset = 0
+	}
 
 	// Validate file access (exists, readable, not binary).
 	if err := CheckFileAccess(input.Path); err != nil {
@@ -58,9 +64,9 @@ func RunSearchLogs(input SearchLogsInput) (SearchLogsOutput, error) {
 		if sepErr != nil {
 			return SearchLogsOutput{}, fmt.Errorf("log_search: VALIDATION_ERROR: invalid record_separator regex: %w", sepErr)
 		}
-		matches, totalMatches, searchedLines, err = streamSearchRecords(input.Path, re, sep, input.MaxResults)
+		matches, totalMatches, searchedLines, err = streamSearchRecords(input.Path, re, sep, input.MaxResults, input.Offset)
 	} else {
-		matches, totalMatches, searchedLines, err = streamSearch(input.Path, re, input.ContextLines, input.MaxResults)
+		matches, totalMatches, searchedLines, err = streamSearch(input.Path, re, input.ContextLines, input.MaxResults, input.Offset)
 	}
 	if err != nil {
 		return SearchLogsOutput{}, fmt.Errorf("log_search: %w", err)
@@ -70,12 +76,17 @@ func RunSearchLogs(input SearchLogsInput) (SearchLogsOutput, error) {
 		matches = []types.SearchMatch{}
 	}
 
+	hasMore := totalMatches > input.Offset+len(matches)
+	nextOffset := input.Offset + len(matches)
+
 	return SearchLogsOutput{
 		Matches:       matches,
 		TotalMatches:  totalMatches,
 		SearchedLines: searchedLines,
 		PatternUsed:   patternUsed,
-		Truncated:     totalMatches > len(matches),
+		Truncated:     hasMore,
+		HasMore:       hasMore,
+		NextOffset:    nextOffset,
 	}, nil
 }
 
@@ -86,7 +97,7 @@ type pendingAfterCtx struct {
 }
 
 // streamSearch reads the file page-by-page and collects matches with context.
-func streamSearch(path string, re *regexp.Regexp, contextLines, maxResults int) ([]types.SearchMatch, int, int, error) {
+func streamSearch(path string, re *regexp.Regexp, contextLines, maxResults, offset int) ([]types.SearchMatch, int, int, error) {
 	var (
 		matches       []types.SearchMatch
 		totalMatches  int
@@ -111,7 +122,7 @@ func streamSearch(path string, re *regexp.Regexp, contextLines, maxResults int) 
 			if re.MatchString(lr.Text) {
 				totalMatches++
 
-				if len(matches) < maxResults {
+				if totalMatches > offset && len(matches) < maxResults {
 					before := copyTail(ringBuf, contextLines)
 					m := types.SearchMatch{
 						LineNumber:    lr.LineNumber,
@@ -186,7 +197,7 @@ func copyTail(buf []string, n int) []string {
 
 // streamSearchRecords searches using RecordScanner — the match applies to the
 // full record text, and the entire record is returned on match.
-func streamSearchRecords(path string, re, sep *regexp.Regexp, maxResults int) ([]types.SearchMatch, int, int, error) {
+func streamSearchRecords(path string, re, sep *regexp.Regexp, maxResults, offset int) ([]types.SearchMatch, int, int, error) {
 	rs, err := fileutil.NewRecordScanner(path, sep)
 	if err != nil {
 		return nil, 0, 0, err
@@ -203,7 +214,7 @@ func streamSearchRecords(path string, re, sep *regexp.Regexp, maxResults int) ([
 
 		if re.MatchString(rec.Text) {
 			totalMatches++
-			if len(matches) < maxResults {
+			if totalMatches > offset && len(matches) < maxResults {
 				matches = append(matches, types.SearchMatch{
 					LineNumber:    rec.StartLine,
 					Line:          rec.Text,
