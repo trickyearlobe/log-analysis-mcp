@@ -493,3 +493,74 @@ func TestRunSearchLogs(t *testing.T) {
 		})
 	}
 }
+
+func TestRunSearchLogsRecordSeparator(t *testing.T) {
+	// Multi-line log: searching for "Handler.java" should return the full
+	// record (including the first line with the error message), not just
+	// the stack trace line.
+	log := strings.Join([]string{
+		"2025-01-15 ERROR NullPointerException in handler",
+		"\tat com.example.Handler.process(Handler.java:42)",
+		"\tat com.example.Server.handle(Server.java:118)",
+		"2025-01-15 INFO Request completed successfully",
+		"2025-01-15 ERROR Timeout connecting to database",
+		"\tat com.example.Dao.query(Dao.java:88)",
+	}, "\n") + "\n"
+	path := writeTempLog(t, "search_record.log", log)
+
+	t.Run("match in continuation line returns full record", func(t *testing.T) {
+		out, err := RunSearchLogs(SearchLogsInput{
+			Path:            path,
+			Pattern:         "Handler.java",
+			RecordSeparator: `^\d{4}-\d{2}-\d{2}`,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.TotalMatches != 1 {
+			t.Fatalf("TotalMatches = %d, want 1", out.TotalMatches)
+		}
+		match := out.Matches[0]
+		// Full record returned — includes the ERROR line and both stack frames.
+		if !strings.Contains(match.Line, "NullPointerException") {
+			t.Errorf("match.Line should contain the record's first line, got: %q", match.Line)
+		}
+		if !strings.Contains(match.Line, "Handler.java:42") {
+			t.Errorf("match.Line should contain the matching stack frame, got: %q", match.Line)
+		}
+		if match.LineNumber != 1 {
+			t.Errorf("LineNumber = %d, want 1 (record start)", match.LineNumber)
+		}
+	})
+
+	t.Run("match on first line of record works", func(t *testing.T) {
+		out, err := RunSearchLogs(SearchLogsInput{
+			Path:            path,
+			Pattern:         "Timeout",
+			RecordSeparator: `^\d{4}-\d{2}-\d{2}`,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.TotalMatches != 1 {
+			t.Fatalf("TotalMatches = %d, want 1", out.TotalMatches)
+		}
+		if !strings.Contains(out.Matches[0].Line, "Dao.java") {
+			t.Errorf("expected full record with stack trace, got: %q", out.Matches[0].Line)
+		}
+	})
+
+	t.Run("searched_lines counts raw lines", func(t *testing.T) {
+		out, err := RunSearchLogs(SearchLogsInput{
+			Path:            path,
+			Pattern:         "NOMATCH",
+			RecordSeparator: `^\d{4}-\d{2}-\d{2}`,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.SearchedLines != 6 {
+			t.Errorf("SearchedLines = %d, want 6", out.SearchedLines)
+		}
+	})
+}

@@ -519,3 +519,62 @@ func TestRunFilterLogs(t *testing.T) {
 		})
 	}
 }
+
+func TestRunFilterLogsRecordSeparator(t *testing.T) {
+	// JSON log with multi-line stack traces following some entries.
+	log := strings.Join([]string{
+		`{"timestamp":"2025-01-15T10:00:00Z","level":"ERROR","message":"NullPointerException"}`,
+		`	at com.example.Handler.process(Handler.java:42)`,
+		`	at com.example.Server.handle(Server.java:118)`,
+		`{"timestamp":"2025-01-15T10:01:00Z","level":"INFO","message":"Request completed"}`,
+		`{"timestamp":"2025-01-15T10:02:00Z","level":"ERROR","message":"Connection timeout"}`,
+		`	at com.example.Net.connect(Net.java:5)`,
+	}, "\n") + "\n"
+	path := writeTempLog(t, "filter_record.log", log)
+
+	t.Run("level filter works with record_separator", func(t *testing.T) {
+		out, err := RunFilterLogs(FilterLogsInput{
+			Path:            path,
+			Level:           []string{"ERROR"},
+			RecordSeparator: `^\{`,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.TotalMatched != 2 {
+			t.Errorf("TotalMatched = %d, want 2", out.TotalMatched)
+		}
+		// The raw field should contain the full record (multi-line).
+		if len(out.Entries) > 0 && !strings.Contains(out.Entries[0].Raw, "Handler.java") {
+			t.Errorf("first entry Raw should include stack trace, got: %q", out.Entries[0].Raw)
+		}
+	})
+
+	t.Run("message_pattern matches full record text", func(t *testing.T) {
+		out, err := RunFilterLogs(FilterLogsInput{
+			Path:            path,
+			MessagePattern:  "Handler.java",
+			RecordSeparator: `^\{`,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.TotalMatched != 1 {
+			t.Errorf("TotalMatched = %d, want 1 (only NPE record has Handler.java)", out.TotalMatched)
+		}
+	})
+
+	t.Run("TotalScanned counts raw lines", func(t *testing.T) {
+		out, err := RunFilterLogs(FilterLogsInput{
+			Path:            path,
+			Level:           []string{"ERROR"},
+			RecordSeparator: `^\{`,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.TotalScanned != 6 {
+			t.Errorf("TotalScanned = %d, want 6 (raw lines)", out.TotalScanned)
+		}
+	})
+}

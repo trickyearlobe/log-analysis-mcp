@@ -409,3 +409,51 @@ func TestTruncateToMinute(t *testing.T) {
 		})
 	}
 }
+
+func TestRunSummarizeLogsRecordSeparator(t *testing.T) {
+	// 4 records (8 raw lines) — record mode should count 4 entries analyzed.
+	log := strings.Join([]string{
+		`{"timestamp":"2025-01-15T10:00:00Z","level":"ERROR","message":"NullPointerException"}`,
+		`	at com.example.Foo.bar(Foo.java:42)`,
+		`	at com.example.Main.main(Main.java:10)`,
+		`{"timestamp":"2025-01-15T10:01:00Z","level":"INFO","message":"Recovery ok"}`,
+		`{"timestamp":"2025-01-15T10:02:00Z","level":"ERROR","message":"Timeout"}`,
+		`	at com.example.Net.connect(Net.java:5)`,
+		`{"timestamp":"2025-01-15T10:03:00Z","level":"INFO","message":"Done"}`,
+	}, "\n") + "\n"
+	path := writeSummaryTempLog(t, "recordsep.log", log)
+
+	t.Run("counts records not raw lines for LinesAnalyzed", func(t *testing.T) {
+		out, err := RunSummarizeLogs(SummarizeLogsInput{
+			Path:            path,
+			RecordSeparator: `^\{`,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// 4 records (entries analyzed)
+		if out.LinesAnalyzed != 4 {
+			t.Errorf("LinesAnalyzed = %d, want 4", out.LinesAnalyzed)
+		}
+		// TotalLines reports raw lines (7 content lines)
+		if out.FileInfo.TotalLines != 7 {
+			t.Errorf("TotalLines = %d, want 7", out.FileInfo.TotalLines)
+		}
+	})
+
+	t.Run("level distribution from record first lines", func(t *testing.T) {
+		out, err := RunSummarizeLogs(SummarizeLogsInput{
+			Path:            path,
+			RecordSeparator: `^\{`,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.LevelDistribution["ERROR"].Count != 2 {
+			t.Errorf("ERROR count = %d, want 2", out.LevelDistribution["ERROR"].Count)
+		}
+		if out.LevelDistribution["INFO"].Count != 2 {
+			t.Errorf("INFO count = %d, want 2", out.LevelDistribution["INFO"].Count)
+		}
+	})
+}

@@ -15,6 +15,9 @@ bin/
 # Dependency directories
 vendor/
 
+# Research
+.samples/
+
 # IDE
 .idea/
 .vscode/

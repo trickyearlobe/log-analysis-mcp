@@ -166,6 +166,7 @@ func RunSummarizeLogs(input SummarizeLogsInput) (SummarizeLogsOutput, error) {
 
 	var earliest, latest string
 	totalLines := 0
+	totalRecords := 0
 	sampled := false
 
 	if recordSep != nil {
@@ -178,9 +179,10 @@ func RunSummarizeLogs(input SummarizeLogsInput) (SummarizeLogsOutput, error) {
 
 		for rs.Scan() {
 			rec := rs.Record()
-			totalLines++
+			totalLines += rec.LineCount
+			totalRecords++
 
-			if input.SampleSize > 0 && totalLines > input.SampleSize {
+			if input.SampleSize > 0 && totalRecords > input.SampleSize {
 				sampled = true
 				break
 			}
@@ -247,6 +249,11 @@ func RunSummarizeLogs(input SummarizeLogsInput) (SummarizeLogsOutput, error) {
 	// Compute throughput.
 	throughput := computeThroughput(minuteBuckets, totalLines, timeRange)
 
+	linesAnalyzed := totalLines
+	if recordSep != nil {
+		linesAnalyzed = totalRecords
+	}
+
 	return SummarizeLogsOutput{
 		FileInfo: FileInfoSummary{
 			Name:       filepath.Base(input.Path),
@@ -262,7 +269,7 @@ func RunSummarizeLogs(input SummarizeLogsInput) (SummarizeLogsOutput, error) {
 		TopErrors:         topErrors,
 		Throughput:        throughput,
 		Sampled:           sampled,
-		LinesAnalyzed:     totalLines,
+		LinesAnalyzed:     linesAnalyzed,
 	}, nil
 }
 
